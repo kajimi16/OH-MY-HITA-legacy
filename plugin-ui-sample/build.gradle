@@ -19,7 +19,7 @@ android {
     }
     composeOptions {
         // 与宿主 Kotlin 1.9.22 匹配的 Compose 编译器
-        kotlinCompilerExtensionVersion '1.5.8'
+        kotlinCompilerExtensionVersion '1.5.14'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
