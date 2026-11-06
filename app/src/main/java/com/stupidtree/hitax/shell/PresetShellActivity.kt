@@ -44,6 +44,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.stupidtree.hita.api.TimetableService
 import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.data.model.timetable.EventItem
+import com.stupidtree.hitax.shell.homework.HomeworkRepository
+import com.stupidtree.hitax.shell.homework.HomeworkScreen
+import com.stupidtree.hitax.shell.homework.HomeworkViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,10 +63,11 @@ class PresetShellActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val service = (application as HApplication).pluginHost.service(TimetableService.KEY)
+        val homeworkViewModel = HomeworkViewModel(HomeworkRepository(application))
         setContent {
             MaterialTheme {
                 Surface(Modifier.fillMaxSize(), color = Color(0xFFF5F7FB)) {
-                    HitaAndroidShell(service)
+                    HitaAndroidShell(service, homeworkViewModel)
                 }
             }
         }
@@ -73,7 +77,10 @@ class PresetShellActivity : ComponentActivity() {
 private data class ShellTab(val title: String, val glyph: String)
 
 @Composable
-private fun HitaAndroidShell(service: TimetableService?) {
+private fun HitaAndroidShell(
+    service: TimetableService?,
+    homeworkViewModel: HomeworkViewModel,
+) {
     val tabs = remember { listOf(
         ShellTab("待办", "✓"),
         ShellTab("今日", "●"),
@@ -85,6 +92,7 @@ private fun HitaAndroidShell(service: TimetableService?) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             when (selected) {
+                0 -> HomeworkScreen(homeworkViewModel)
                 1 -> TodayPage(service)
                 2 -> TimetablePage(service)
                 else -> StubPage(tabs[selected].title)
