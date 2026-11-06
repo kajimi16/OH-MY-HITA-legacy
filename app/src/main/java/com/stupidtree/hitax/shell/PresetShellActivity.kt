@@ -24,6 +24,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -99,7 +100,7 @@ private fun HitaAndroidShell(
                 1 -> TodayPage(service)
                 2 -> TimetablePage(service)
                 3 -> AssistantPage()
-                4 -> MorePage()
+                4 -> MorePage(service)
                 else -> StubPage(tabs[selected].title)
             }
         }
@@ -339,8 +340,17 @@ private fun AssistantPage() {
 }
 
 @Composable
-private fun MorePage() {
+private fun MorePage(service: TimetableService?) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("local_eas_token", android.content.Context.MODE_PRIVATE) }
+    val userName = remember {
+        prefs.getString("name", null)?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("username", null)?.takeIf { it.isNotBlank() }
+    }
+    val timetableCountLive = remember(service) {
+        service?.getTimetableCount() ?: androidx.lifecycle.MutableLiveData(0)
+    }
+    val timetableCount by timetableCountLive.observeAsState(0)
     fun open(className: String?) {
         if (className.isNullOrBlank()) return
         runCatching {
@@ -359,34 +369,103 @@ private fun MorePage() {
             )
         }
     }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())
+        .padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text("更多", fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(14.dp))
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            modifier = Modifier.fillMaxWidth().clickable {
+                open("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
+            },
+        ) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.width(44.dp).height(44.dp).background(Color(0xFFE8EEFF), RoundedCornerShape(22.dp)),
+                    contentAlignment = Alignment.Center,
+                ) { Text("H", color = Color(0xFF2563EB), fontWeight = FontWeight.Bold) }
+                Column(Modifier.padding(start = 14.dp)) {
+                    Text(userName ?: "未登录教务", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                    Text(
+                        if (userName == null) "点击进行教务登录" else "已连接教务",
+                        color = Color(0xFF6B7280),
+                        fontSize = 12.sp,
+                    )
+                }
+            }
+        }
         Spacer(Modifier.height(12.dp))
-        Text("教务功能", color = Color(0xFF6B7280), fontSize = 13.sp)
-        MoreCard("成绩管理", "个人成绩明细 · 分项得分") {
-            open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("课表管理", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                    Text("共${timetableCount ?: 0}个课表", color = Color(0xFF6B7280), fontSize = 12.sp)
+                }
+                Text("查看", color = Color(0xFF2563EB), fontSize = 13.sp)
+            }
         }
-        MoreCard("空教室", "教学楼与指定周空闲教室") {
-            open("com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomActivity")
+        Spacer(Modifier.height(14.dp))
+        MoreGroup("教务功能") {
+            MoreRow("考试") { open("com.stupidtree.hitax.ui.eas.exam.ExamActivity") }
+            MoreRow("成绩管理", "个人成绩明细 · 分项得分 · 权重折算") {
+                open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
+            }
+            MoreRow("空教室") { open("com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomActivity") }
+            MoreRow("培养方案", "完成度 · 学分类别 · 培养课组") {
+                openPlugin("com.stupidtree.hita.ui.training")
+            }
+            MoreRow("深圳课程浏览", "教务选课池 · 全校课表（需 Web 登录）") {
+                openPlugin("com.stupidtree.hita.ui.community")
+            }
         }
-        MoreCard("考试", "考试安排与备忘录") {
-            open("com.stupidtree.hitax.ui.eas.exam.ExamActivity")
+        Spacer(Modifier.height(14.dp))
+        MoreGroup("课程资源") {
+            MoreRow("查询资源", "查询三个校区的课程资料") {
+                open("com.stupidtree.hitax.ui.search.SearchActivity")
+            }
         }
-        MoreCard("培养方案", "完成度 · 学分类别 · 培养课组") {
-            openPlugin("com.stupidtree.hita.ui.training")
+        Spacer(Modifier.height(14.dp))
+        MoreGroup("设置") {
+            MoreRow("连接深圳 Web 教务", "培养方案、考试等需要 Web 会话") {
+                open("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
+            }
+            MoreRow("应用设置", "外观、提醒与数据") {
+                open("com.stupidtree.hitax.ui.main.MainActivity")
+            }
         }
-        MoreCard("连接深圳 Web 教务", "培养方案 / 考试需要 Web 会话") {
-            open("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
+    }
+}
+
+@Composable
+private fun MoreGroup(title: String, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(title, color = Color(0xFF6B7280), fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                content()
+            }
         }
-        Spacer(Modifier.height(10.dp))
-        Text("课程资源", color = Color(0xFF6B7280), fontSize = 13.sp)
-        MoreCard("查询资源", "查询三个校区的课程资料") {
-            open("com.stupidtree.hitax.ui.search.SearchActivity")
-        }
-        Spacer(Modifier.height(10.dp))
-        Text("设置", color = Color(0xFF6B7280), fontSize = 13.sp)
-        MoreCard("应用设置", "外观、提醒与数据") {
-            open("com.stupidtree.hitax.ui.main.MainActivity")
+    }
+}
+
+@Composable
+private fun MoreRow(title: String, subtitle: String? = null, onClick: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 13.dp),
+    ) {
+        Text(title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+        if (!subtitle.isNullOrBlank()) {
+            Text(subtitle, color = Color(0xFF6B7280), fontSize = 12.sp)
         }
     }
 }
