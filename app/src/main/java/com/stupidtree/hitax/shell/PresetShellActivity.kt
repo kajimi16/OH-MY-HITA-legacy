@@ -29,12 +29,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.ui.text.style.TextOverflow
 import com.stupidtree.hita.api.TimetableService
 import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.data.model.timetable.EventItem
@@ -80,6 +85,7 @@ private fun HitaAndroidShell(service: TimetableService?) {
         Box(Modifier.weight(1f)) {
             when (selected) {
                 1 -> TodayPage(service)
+                2 -> TimetablePage(service)
                 else -> StubPage(tabs[selected].title)
             }
         }
@@ -158,6 +164,106 @@ private fun EventRow(event: EventItem) {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+    }
+}
+
+@Composable
+private fun TimetablePage(service: TimetableService?) {
+    val timetableLive = remember(service) {
+        service?.getRecentTimetable()
+            ?: androidx.lifecycle.MutableLiveData<com.stupidtree.hitax.data.model.timetable.Timetable?>(null)
+    }
+    val timetable by timetableLive.observeAsState(null)
+    val currentWeekLive = remember(service, timetable) {
+        service?.getCurrentWeekOfTimetable(timetable?.code)
+            ?: androidx.lifecycle.MutableLiveData(1)
+    }
+    val currentWeek by currentWeekLive.observeAsState(1)
+    val week = (currentWeek ?: 1).coerceAtLeast(1)
+    val start = remember(timetable, week) {
+        (timetable?.startTime?.time ?: 0L) + (week - 1).toLong() * 7 * 24 * 3600 * 1000
+    }
+    val eventsLive = remember(service, start) {
+        service?.getEventsDuring(start, start + 7L * 24 * 3600 * 1000)
+            ?: androidx.lifecycle.MutableLiveData(emptyList())
+    }
+    val events by eventsLive.observeAsState(emptyList())
+
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp)) {
+            Text(
+                "第${week}周",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
+                modifier = Modifier.weight(1f),
+            )
+            Text(timetable?.name ?: "课表", color = Color(0xFF6B7280))
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp, start = 42.dp, end = 8.dp)) {
+            listOf("一", "二", "三", "四", "五", "六", "日").forEachIndexed { index, day ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(day, fontWeight = FontWeight.Medium)
+                    val date = ((start + index * 24L * 3600 * 1000) / 1000L)
+                    Text(
+                        SimpleDateFormat("d", Locale.CHINA).format(Date(date * 1000L)),
+                        color = Color(0xFF9CA3AF),
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+        }
+        Row(Modifier.fillMaxSize().padding(top = 4.dp)) {
+            Column(Modifier.width(38.dp)) {
+                repeat(12) { index ->
+                    Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.TopCenter) {
+                        Text("${index + 1}", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                    }
+                }
+            }
+            repeat(7) { dayIndex ->
+                Column(Modifier.weight(1f).padding(horizontal = 1.dp)) {
+                    repeat(12) { period ->
+                        val item = events.firstOrNull {
+                            it.fromNumber == period + 1 && dayOfWeek(it.from.time) == dayIndex + 1
+                        }
+                        Box(Modifier.fillMaxWidth().height(48.dp).padding(1.dp)) {
+                            if (item != null) {
+                                val span = (item.lastNumber - item.fromNumber + 1).coerceAtLeast(1)
+                                Card(
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = Color(item.color).copy(alpha = 0.9f),
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().height((48 * span).dp),
+                                ) {
+                                    Column(Modifier.padding(4.dp)) {
+                                        Text(
+                                            item.name,
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            maxLines = 3,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        item.place?.takeIf { it.isNotBlank() }?.let {
+                                            Text(it, color = Color.White.copy(alpha = .8f), fontSize = 9.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun dayOfWeek(time: Long): Int {
+    val c = java.util.Calendar.getInstance()
+    c.timeInMillis = time
+    return when (c.get(java.util.Calendar.DAY_OF_WEEK)) {
+        java.util.Calendar.SUNDAY -> 7
+        else -> c.get(java.util.Calendar.DAY_OF_WEEK) - 1
     }
 }
 
