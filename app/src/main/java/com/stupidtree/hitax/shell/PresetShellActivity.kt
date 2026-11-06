@@ -23,8 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -103,14 +103,34 @@ private fun HitaAndroidShell(
                 else -> StubPage(tabs[selected].title)
             }
         }
-        NavigationBar(containerColor = Color.White, tonalElevation = 0.dp) {
-            tabs.forEachIndexed { index, tab ->
-                NavigationBarItem(
-                    selected = selected == index,
-                    onClick = { selected = index },
-                    icon = { Text(tab.glyph) },
-                    label = { Text(tab.title) },
-                )
+        Box(Modifier.fillMaxWidth().padding(bottom = 4.dp), contentAlignment = Alignment.BottomCenter) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = Color.White,
+                shadowElevation = 10.dp,
+                modifier = Modifier.width(288.dp).height(54.dp),
+            ) {
+                Row(Modifier.fillMaxSize()) {
+                    tabs.forEachIndexed { index, tab ->
+                        Box(
+                            Modifier.weight(1f).fillMaxSize().clickable { selected = index },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    tab.glyph,
+                                    color = if (selected == index) Color(0xFF2563EB) else Color(0xFF6B7280),
+                                    fontSize = 16.sp,
+                                )
+                                Text(
+                                    tab.title,
+                                    color = if (selected == index) Color(0xFF2563EB) else Color(0xFF6B7280),
+                                    fontSize = 10.sp,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
