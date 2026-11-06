@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.style.TextOverflow
 import com.stupidtree.hita.api.TimetableService
@@ -221,33 +222,41 @@ private fun TimetablePage(service: TimetableService?) {
                 }
             }
             repeat(7) { dayIndex ->
-                Column(Modifier.weight(1f).padding(horizontal = 1.dp)) {
+                Box(
+                    Modifier.weight(1f).height((12 * 48).dp).padding(horizontal = 1.dp),
+                ) {
                     repeat(12) { period ->
-                        val item = events.firstOrNull {
-                            it.fromNumber == period + 1 && dayOfWeek(it.from.time) == dayIndex + 1
+                        Box(Modifier.fillMaxWidth().height(48.dp).offset(y = (period * 48).dp)) {
+                            Box(
+                                Modifier.fillMaxWidth().height(1.dp)
+                                    .background(Color(0x11000000)),
+                            )
                         }
-                        Box(Modifier.fillMaxWidth().height(48.dp).padding(1.dp)) {
-                            if (item != null) {
-                                val span = (item.lastNumber - item.fromNumber + 1).coerceAtLeast(1)
-                                Card(
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = Color(item.color).copy(alpha = 0.9f),
-                                    ),
-                                    modifier = Modifier.fillMaxWidth().height((48 * span).dp),
-                                ) {
-                                    Column(Modifier.padding(4.dp)) {
-                                        Text(
-                                            item.name,
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            maxLines = 3,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        item.place?.takeIf { it.isNotBlank() }?.let {
-                                            Text(it, color = Color.White.copy(alpha = .8f), fontSize = 9.sp)
-                                        }
-                                    }
+                    }
+                    events.filter { dayOfWeek(it.from.time) == dayIndex + 1 }.forEach { item ->
+                        val top = ((item.fromNumber - 1).coerceAtLeast(0)) * 48
+                        val span = (item.lastNumber - item.fromNumber + 1).coerceAtLeast(1)
+                        Card(
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(item.color).copy(alpha = 0.9f),
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(1.dp)
+                                .offset(y = top.dp)
+                                .height((48 * span - 2).dp),
+                        ) {
+                            Column(Modifier.padding(4.dp)) {
+                                Text(
+                                    item.name,
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                item.place?.takeIf { it.isNotBlank() }?.let {
+                                    Text(it, color = Color.White.copy(alpha = .8f), fontSize = 9.sp)
                                 }
                             }
                         }
