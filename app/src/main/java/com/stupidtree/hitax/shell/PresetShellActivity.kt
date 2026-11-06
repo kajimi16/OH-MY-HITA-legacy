@@ -1,7 +1,10 @@
 package com.stupidtree.hitax.shell
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.fragment.app.FragmentContainerView
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -55,7 +58,7 @@ import java.util.Locale
  * 独立 Preset Shell 入口：不经过 MainActivity 的固定四页壳。
  * 当前里程碑：五 tab 导航 + 真实今日课程页（数据来自 TimetableService）。
  */
-class PresetShellActivity : ComponentActivity() {
+class PresetShellActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_SHELL_ID = "shellId"
     }
@@ -95,6 +98,8 @@ private fun HitaAndroidShell(
                 0 -> HomeworkScreen(homeworkViewModel)
                 1 -> TodayPage(service)
                 2 -> TimetablePage(service)
+                3 -> AssistantPage()
+                4 -> MorePage()
                 else -> StubPage(tabs[selected].title)
             }
         }
@@ -281,6 +286,101 @@ private fun dayOfWeek(time: Long): Int {
     return when (c.get(java.util.Calendar.DAY_OF_WEEK)) {
         java.util.Calendar.SUNDAY -> 7
         else -> c.get(java.util.Calendar.DAY_OF_WEEK) - 1
+    }
+}
+
+@Composable
+private fun AssistantPage() {
+    AndroidView(
+        factory = { ctx ->
+            FragmentContainerView(ctx).apply {
+                id = View.generateViewId()
+                val activity = ctx as? androidx.fragment.app.FragmentActivity
+                if (activity != null) {
+                    activity.supportFragmentManager.beginTransaction()
+                        .replace(
+                            id,
+                            com.stupidtree.hitax.uiplugin.RuntimeUiTabFragment.newInstance(
+                                "com.stupidtree.hita.ui.ai",
+                                com.stupidtree.hita.api.MainTabSpec(
+                                    id = "assistant",
+                                    title = "助手",
+                                ),
+                            ),
+                        )
+                        .commitNowAllowingStateLoss()
+                }
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+    )
+}
+
+@Composable
+private fun MorePage() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    fun open(className: String?) {
+        if (className.isNullOrBlank()) return
+        runCatching {
+            context.startActivity(
+                android.content.Intent().setClassName(context, className)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+    fun openPlugin(id: String) {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(context, com.stupidtree.hitax.uiplugin.PluginUiActivity::class.java)
+                    .putExtra(com.stupidtree.hitax.uiplugin.PluginUiActivity.EXTRA_PLUGIN_ID, id)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text("更多", fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(12.dp))
+        Text("教务功能", color = Color(0xFF6B7280), fontSize = 13.sp)
+        MoreCard("成绩管理", "个人成绩明细 · 分项得分") {
+            open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
+        }
+        MoreCard("空教室", "教学楼与指定周空闲教室") {
+            open("com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomActivity")
+        }
+        MoreCard("考试", "考试安排与备忘录") {
+            open("com.stupidtree.hitax.ui.eas.exam.ExamActivity")
+        }
+        MoreCard("培养方案", "完成度 · 学分类别 · 培养课组") {
+            openPlugin("com.stupidtree.hita.ui.training")
+        }
+        MoreCard("连接深圳 Web 教务", "培养方案 / 考试需要 Web 会话") {
+            open("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("课程资源", color = Color(0xFF6B7280), fontSize = 13.sp)
+        MoreCard("查询资源", "查询三个校区的课程资料") {
+            open("com.stupidtree.hitax.ui.search.SearchActivity")
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("设置", color = Color(0xFF6B7280), fontSize = 13.sp)
+        MoreCard("应用设置", "外观、提醒与数据") {
+            open("com.stupidtree.hitax.ui.main.MainActivity")
+        }
+    }
+}
+
+@Composable
+private fun MoreCard(title: String, subtitle: String, onClick: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        onClick = onClick,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Text(title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+            Text(subtitle, color = Color(0xFF6B7280), fontSize = 12.sp)
+        }
     }
 }
 
