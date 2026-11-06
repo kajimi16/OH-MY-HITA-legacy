@@ -120,12 +120,14 @@ private fun HitaAndroidShell(
                                 Text(
                                     tab.glyph,
                                     color = if (selected == index) Color(0xFF2563EB) else Color(0xFF6B7280),
-                                    fontSize = 16.sp,
+                                    fontSize = 15.sp,
+                                    lineHeight = 15.sp,
                                 )
                                 Text(
                                     tab.title,
                                     color = if (selected == index) Color(0xFF2563EB) else Color(0xFF6B7280),
                                     fontSize = 10.sp,
+                                    lineHeight = 10.sp,
                                 )
                             }
                         }
