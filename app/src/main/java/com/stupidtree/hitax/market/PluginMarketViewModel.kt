@@ -447,7 +447,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                     }
             }
             if (failures.isEmpty()) {
-                PresetStateStore.setActive(ctx(), preset.id)
+                PresetStateStore.setActive(ctx(), preset.id, preset.shell)
                 activePresetId.postValue(preset.id)
             }
 

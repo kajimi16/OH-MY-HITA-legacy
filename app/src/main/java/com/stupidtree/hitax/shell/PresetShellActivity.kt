@@ -45,6 +45,10 @@ import java.util.Locale
  * 当前里程碑：五 tab 导航 + 真实今日课程页（数据来自 TimetableService）。
  */
 class PresetShellActivity : ComponentActivity() {
+    companion object {
+        const val EXTRA_SHELL_ID = "shellId"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val service = (application as HApplication).pluginHost.service(TimetableService.KEY)

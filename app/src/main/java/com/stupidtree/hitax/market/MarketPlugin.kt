@@ -68,6 +68,8 @@ data class MarketPreset(
     val description: String? = null,
     val minHostApi: Int? = null,
     val plugins: List<PresetPluginRef>? = null,
+    /** 该整合包的 UI Shell 标识；为空时使用宿主默认壳。 */
+    val shell: String? = null,
     /** 原项目仓库地址。 */
     val repo: String? = null,
     /** 支持的数据迁移，例如 timetable.ics。 */

@@ -104,6 +104,17 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     private var drawerUsername: TextView? = null
     private var drawerHeader: ViewGroup? = null
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (savedInstanceState == null) {
+            val shell = com.stupidtree.hitax.market.PresetStateStore.activeShell(this)
+            if (!shell.isNullOrBlank()) {
+                startActivity(
+                    Intent(this, com.stupidtree.hitax.shell.PresetShellActivity::class.java)
+                        .putExtra(com.stupidtree.hitax.shell.PresetShellActivity.EXTRA_SHELL_ID, shell)
+                )
+                finish()
+                return
+            }
+        }
         super.onCreate(savedInstanceState)
         setSupportActionBar(binding.toolbar)
     }
