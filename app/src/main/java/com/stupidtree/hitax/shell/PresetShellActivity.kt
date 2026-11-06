@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.stupidtree.hita.api.TimetableService
 import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.data.model.timetable.EventItem
@@ -96,7 +98,7 @@ private fun HitaAndroidShell(service: TimetableService?) {
 
 @Composable
 private fun TodayPage(service: TimetableService?) {
-    val dateText = remember { SimpleDateFormat("M月d日 EEEE", Locale.CHINA).format(Date()) }
+    val dateText = remember { SimpleDateFormat("M月d日 EEE", Locale.CHINA).format(Date()) }
     val events = remember(service) {
         runCatching { service?.getTodayEventsSync().orEmpty() }.getOrDefault(emptyList())
     }
@@ -105,25 +107,27 @@ private fun TodayPage(service: TimetableService?) {
             service?.getRecentTimetable()?.value?.let { service.getCurrentWeekOfTimetable(it.code)?.value }
         }.getOrNull()
     }
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
-        Text(dateText, color = Color(0xFF6B7280))
-        Text("今日", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+    Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 20.dp)) {
         Text(
-            if (currentWeek != null) "第 $currentWeek 教学周" else "课表未同步",
-            color = Color(0xFF6B7280),
-            modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
+            dateText,
+            color = Color(0xFF111827),
+            fontSize = 26.sp,
+            fontWeight = FontWeight.SemiBold,
         )
+        Spacer(Modifier.height(38.dp))
         Card(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp),
         ) {
-            Column(Modifier.padding(20.dp)) {
-                Text(if (events.isEmpty()) "今日空闲" else "今日课程", fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(10.dp))
-                if (events.isEmpty()) {
-                    Text("没有课程安排", color = Color(0xFF6B7280))
-                } else {
+            Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                Text(
+                    if (events.isEmpty()) "今日空闲" else "今日课程",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (events.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
                     events.sortedBy { it.from.time }.forEach { event ->
                         EventRow(event)
                     }
