@@ -25,6 +25,8 @@ class ReActToolRegistry {
                 .trim('_')
         }
 
-        fun createDefault(): ReActToolRegistry = ReActToolRegistry()
+        fun createDefault(): ReActToolRegistry = ReActToolRegistry().apply {
+            register("get_timetable", GetTimetableTool())
+        }
     }
 }
