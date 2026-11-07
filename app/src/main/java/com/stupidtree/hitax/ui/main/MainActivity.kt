@@ -547,10 +547,16 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
             Page(R.id.navigation_navigation, getString(R.string.title_navigation), R.drawable.ic_nav_navigation) {
                 NavigationFragment()
             },
-            Page(R.id.navigation_plugin, getString(R.string.title_plugin), R.drawable.ic_nav_plugin) {
-                com.stupidtree.hitax.market.FragmentPluginMarket()
-            },
         )
+        if (com.stupidtree.hitax.market.PresetStateStore.activeId(this) != "hita-l-1.5.3") {
+            result += Page(
+                R.id.navigation_plugin,
+                getString(R.string.title_plugin),
+                R.drawable.ic_nav_plugin,
+            ) {
+                com.stupidtree.hitax.market.FragmentPluginMarket()
+            }
+        }
         host.tabs.entries()
             .filterNot { it.id in baseTabIds }
             .forEach { tab ->
