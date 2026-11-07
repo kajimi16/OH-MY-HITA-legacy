@@ -63,7 +63,7 @@ Shell 入口：
 ## Agent 未完成
 
 - 上游 `AgentChatFragment` 961 行 UI
-- 上游 `AgentChatViewModel` 的会话切换/删除/附件
+- 附件选择/上传（会话持久化、切换、删除已接）
 - 剩余 10 个工具：
   - `search_timetable`
   - `search_course`
@@ -86,8 +86,14 @@ Shell 入口：
 
 ## 下一步顺序
 
-1. 接 `AgentChatViewModel` 到 Room Repository
-2. 移植上游 AgentChat UI
-3. 补剩余 10 个工具
-4. 五页截图验收
-5. 才考虑把 `hita-android-3.1.2` 切到 Shell
+1. 移植上游 AgentChat UI
+2. 补剩余 10 个工具
+3. 五页截图验收
+4. 才考虑把 `hita-android-3.1.2` 切到 Shell
+
+## 运行时证据
+
+- 设备：`emulator-5554`
+- 注入 `preset_state.xml` 后启动，前台为 `PresetShellActivity`
+- Room 库 `databases/hita_agent_chat` 已创建
+- `chat_session` 实际存在一行：`新对话`
