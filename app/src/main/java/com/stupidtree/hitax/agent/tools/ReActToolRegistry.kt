@@ -30,6 +30,16 @@ class ReActToolRegistry {
             register("add_activity", AddActivityTool())
             register("search_empty_classroom", SearchEmptyClassroomTool())
             register("search_teacher", SearchTeacherTool())
+            register("search_external_resource", SearchExternalResourceTool())
+            register("search_timetable", SearchTimetableTool())
+            register("search_course", SearchCourseTool())
+            register("get_course_detail", GetCourseDetailTool())
+            register("web_search", WebSearchTool())
+            register("rag_search", RagSearchTool())
+            register("crawl_page", CrawlPageTool())
+            register("crawl_site", CrawlSiteTool())
+            register("crawl_status", CrawlStatusTool())
+            register("submit_review", SubmitReviewTool())
         }
     }
 }
