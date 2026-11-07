@@ -65,6 +65,10 @@ class TimetableRepository(val application: Application) {
      * 获取今日事件
      */
     @WorkerThread
+    fun getEventsDuringSync(from: Long, to: Long): List<EventItem> =
+        eventItemDao.getEventsDuringSync(from, to).sortedBy { it.from.time }
+
+    @WorkerThread
     fun getTodayEventsSync(): List<EventItem> {
         val now = Calendar.getInstance()
         now.set(Calendar.HOUR_OF_DAY,0)

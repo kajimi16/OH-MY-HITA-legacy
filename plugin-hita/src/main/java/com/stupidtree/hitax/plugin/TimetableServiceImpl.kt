@@ -67,6 +67,9 @@ class TimetableServiceImpl(
 
     override fun getTodayEventsSync(): List<EventItem> = timetables.getTodayEventsSync()
 
+    override fun getEventsDuringSync(from: Long, to: Long): List<EventItem> =
+        timetables.getEventsDuringSync(from, to)
+
     override fun getClassesOfSubject(subjectId: String): LiveData<List<EventItem>> =
         timetables.getClassesOfSubject(subjectId)
 

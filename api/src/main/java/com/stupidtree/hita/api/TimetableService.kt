@@ -42,6 +42,9 @@ interface TimetableService {
 
     fun getTodayEventsSync(): List<EventItem>
 
+    @androidx.annotation.WorkerThread
+    fun getEventsDuringSync(from: Long, to: Long): List<EventItem>
+
     fun getClassesOfSubject(subjectId: String): LiveData<List<EventItem>>
 
     fun searchLocation(str: String): LiveData<List<String>>
