@@ -116,6 +116,11 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 return
             }
         }
+        if (com.stupidtree.hitax.market.PresetStateStore.activeId(this) == "hita-l-1.5.3") {
+            window.navigationBarColor = Color.BLACK
+            androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+                .isAppearanceLightNavigationBars = false
+        }
         setSupportActionBar(binding.toolbar)
     }
 
