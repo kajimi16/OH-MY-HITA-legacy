@@ -57,12 +57,15 @@ Shell 入口：
   - `search_empty_classroom`
   - `search_teacher`
 - `ShellChatService`：宿主 ReAct 循环（最大 6 步）
-- `AgentChatViewModel`：宿主聊天状态
+- `AgentChatViewModel`：会话持久化、切换、删除
+- `shell/agent/AgentChatScreen.kt`：上游布局、Markdown、AI 设置对话框
 - `agent/data`：ChatDatabase、DAO、Store、Repository（Room）
 
 ## Agent 未完成
 
-- 上游 `AgentChatFragment` 961 行 UI
+- 上游 `AgentChatFragment` UI 已移植到 `shell/agent/AgentChatScreen.kt`
+- 助手页标题/会话栏/欢迎卡与上游误差 1px
+- 仍缺：附件选择与上传、资源卡片展示
 - 附件选择/上传（会话持久化、切换、删除已接）
 - 剩余 10 个工具：
   - `search_timetable`
@@ -97,3 +100,6 @@ Shell 入口：
 - 注入 `preset_state.xml` 后启动，前台为 `PresetShellActivity`
 - Room 库 `databases/hita_agent_chat` 已创建
 - `chat_session` 实际存在一行：`新对话`
+- 助手页坐标：标题 `[37,117][166,208]`，会话栏 `[64,320][575,383]`，欢迎卡 `[105,520][975,810]`
+- 与上游同页截图差异：全屏 `8.05%`，去掉状态栏/导航区 `7.29%`
+- 差异主因：附件按钮缺失、字体栅格化、底部 dock 背景

@@ -52,7 +52,7 @@ import com.stupidtree.hitax.data.model.timetable.EventItem
 import com.stupidtree.hitax.shell.homework.HomeworkRepository
 import com.stupidtree.hitax.shell.homework.HomeworkScreen
 import com.stupidtree.hitax.agent.AgentChatViewModel
-import com.stupidtree.hitax.agent.AgentMessage
+import com.stupidtree.hitax.shell.agent.AgentChatScreen
 import com.stupidtree.hitax.shell.homework.HomeworkViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -73,8 +73,19 @@ class PresetShellActivity : AppCompatActivity() {
         val homeworkViewModel = HomeworkViewModel(HomeworkRepository(application))
         val agentViewModel = AgentChatViewModel(application)
         setContent {
-            MaterialTheme {
-                Surface(Modifier.fillMaxSize(), color = Color(0xFFF5F7FB)) {
+            MaterialTheme(
+                colorScheme = androidx.compose.material3.lightColorScheme(
+                    primary = Color(0xFF3390EC),
+                    onPrimary = Color.White,
+                    primaryContainer = Color(0xFFEBF4FC),
+                    onPrimaryContainer = Color(0xFF003366),
+                    background = Color(0xFFF6F7FA),
+                    surface = Color.White,
+                    onSurface = Color.Black,
+                    onSurfaceVariant = Color(0xFF808080),
+                ),
+            ) {
+                Surface(Modifier.fillMaxSize(), color = Color(0xFFF6F7FA)) {
                     HitaAndroidShell(service, homeworkViewModel, agentViewModel)
                 }
             }
@@ -104,7 +115,7 @@ private fun HitaAndroidShell(
                 0 -> HomeworkScreen(homeworkViewModel)
                 1 -> TodayPage(service)
                 2 -> TimetablePage(service)
-                3 -> AssistantPage(agentViewModel, service)
+                3 -> AgentChatScreen(agentViewModel, remember(service) { runCatching { service?.getRecentTimetable()?.value?.id }.getOrNull() })
                 4 -> MorePage(service)
                 else -> StubPage(tabs[selected].title)
             }
@@ -314,54 +325,6 @@ private fun dayOfWeek(time: Long): Int {
     return when (c.get(java.util.Calendar.DAY_OF_WEEK)) {
         java.util.Calendar.SUNDAY -> 7
         else -> c.get(java.util.Calendar.DAY_OF_WEEK) - 1
-    }
-}
-
-@Composable
-private fun AssistantPage(viewModel: AgentChatViewModel, service: TimetableService?) {
-    var input by remember { mutableStateOf("") }
-    val timetableId = remember(service) {
-        runCatching { service?.getRecentTimetable()?.value?.id }.getOrNull()
-    }
-    Column(Modifier.fillMaxSize()) {
-        androidx.compose.foundation.lazy.LazyColumn(
-            Modifier.weight(1f).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(viewModel.messages) { message ->
-                val isUser = message.role == "user"
-                Box(Modifier.fillMaxWidth(), contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart) {
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isUser) Color(0xFF2563EB) else Color.White,
-                        ),
-                        modifier = Modifier.fillMaxWidth(0.85f),
-                    ) {
-                        Text(
-                            message.text,
-                            color = if (isUser) Color.White else Color(0xFF111827),
-                            modifier = Modifier.padding(12.dp),
-                        )
-                    }
-                }
-            }
-            if (viewModel.busy) item { Text("思考中…", color = Color(0xFF6B7280)) }
-        }
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.material3.OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                placeholder = { Text("问点什么…") },
-                modifier = Modifier.weight(1f),
-                maxLines = 4,
-            )
-            androidx.compose.material3.Button(
-                onClick = { viewModel.send(input, timetableId); input = "" },
-                enabled = input.isNotBlank() && !viewModel.busy,
-                modifier = Modifier.padding(start = 8.dp),
-            ) { Text("发送") }
-        }
     }
 }
 
