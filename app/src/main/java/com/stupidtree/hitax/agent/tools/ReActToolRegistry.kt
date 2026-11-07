@@ -28,6 +28,7 @@ class ReActToolRegistry {
         fun createDefault(): ReActToolRegistry = ReActToolRegistry().apply {
             register("get_timetable", GetTimetableTool())
             register("add_activity", AddActivityTool())
+            register("search_empty_classroom", SearchEmptyClassroomTool())
         }
     }
 }
