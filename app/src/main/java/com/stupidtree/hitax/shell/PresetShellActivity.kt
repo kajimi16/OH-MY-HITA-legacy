@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -50,6 +51,8 @@ import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.data.model.timetable.EventItem
 import com.stupidtree.hitax.shell.homework.HomeworkRepository
 import com.stupidtree.hitax.shell.homework.HomeworkScreen
+import com.stupidtree.hitax.agent.AgentChatViewModel
+import com.stupidtree.hitax.agent.AgentMessage
 import com.stupidtree.hitax.shell.homework.HomeworkViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -68,10 +71,11 @@ class PresetShellActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val service = (application as HApplication).pluginHost.service(TimetableService.KEY)
         val homeworkViewModel = HomeworkViewModel(HomeworkRepository(application))
+        val agentViewModel = AgentChatViewModel(application)
         setContent {
             MaterialTheme {
                 Surface(Modifier.fillMaxSize(), color = Color(0xFFF5F7FB)) {
-                    HitaAndroidShell(service, homeworkViewModel)
+                    HitaAndroidShell(service, homeworkViewModel, agentViewModel)
                 }
             }
         }
@@ -84,6 +88,7 @@ private data class ShellTab(val title: String, val glyph: String)
 private fun HitaAndroidShell(
     service: TimetableService?,
     homeworkViewModel: HomeworkViewModel,
+    agentViewModel: AgentChatViewModel,
 ) {
     val tabs = remember { listOf(
         ShellTab("待办", "✓"),
@@ -99,7 +104,7 @@ private fun HitaAndroidShell(
                 0 -> HomeworkScreen(homeworkViewModel)
                 1 -> TodayPage(service)
                 2 -> TimetablePage(service)
-                3 -> AssistantPage()
+                3 -> AssistantPage(agentViewModel, service)
                 4 -> MorePage(service)
                 else -> StubPage(tabs[selected].title)
             }
@@ -313,30 +318,51 @@ private fun dayOfWeek(time: Long): Int {
 }
 
 @Composable
-private fun AssistantPage() {
-    AndroidView(
-        factory = { ctx ->
-            FragmentContainerView(ctx).apply {
-                id = View.generateViewId()
-                val activity = ctx as? androidx.fragment.app.FragmentActivity
-                if (activity != null) {
-                    activity.supportFragmentManager.beginTransaction()
-                        .replace(
-                            id,
-                            com.stupidtree.hitax.uiplugin.RuntimeUiTabFragment.newInstance(
-                                "com.stupidtree.hita.ui.ai",
-                                com.stupidtree.hita.api.MainTabSpec(
-                                    id = "assistant",
-                                    title = "助手",
-                                ),
-                            ),
+private fun AssistantPage(viewModel: AgentChatViewModel, service: TimetableService?) {
+    var input by remember { mutableStateOf("") }
+    val timetableId = remember(service) {
+        runCatching { service?.getRecentTimetable()?.value?.id }.getOrNull()
+    }
+    Column(Modifier.fillMaxSize()) {
+        androidx.compose.foundation.lazy.LazyColumn(
+            Modifier.weight(1f).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(viewModel.messages) { message ->
+                val isUser = message.role == "user"
+                Box(Modifier.fillMaxWidth(), contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart) {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isUser) Color(0xFF2563EB) else Color.White,
+                        ),
+                        modifier = Modifier.fillMaxWidth(0.85f),
+                    ) {
+                        Text(
+                            message.text,
+                            color = if (isUser) Color.White else Color(0xFF111827),
+                            modifier = Modifier.padding(12.dp),
                         )
-                        .commitNowAllowingStateLoss()
+                    }
                 }
             }
-        },
-        modifier = Modifier.fillMaxSize(),
-    )
+            if (viewModel.busy) item { Text("思考中…", color = Color(0xFF6B7280)) }
+        }
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.OutlinedTextField(
+                value = input,
+                onValueChange = { input = it },
+                placeholder = { Text("问点什么…") },
+                modifier = Modifier.weight(1f),
+                maxLines = 4,
+            )
+            androidx.compose.material3.Button(
+                onClick = { viewModel.send(input, timetableId); input = "" },
+                enabled = input.isNotBlank() && !viewModel.busy,
+                modifier = Modifier.padding(start = 8.dp),
+            ) { Text("发送") }
+        }
+    }
 }
 
 @Composable
