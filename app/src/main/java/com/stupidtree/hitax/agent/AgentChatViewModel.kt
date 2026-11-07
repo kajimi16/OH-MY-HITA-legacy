@@ -16,6 +16,8 @@ import com.stupidtree.hitax.agent.model.ChatMessageRecord
 import com.stupidtree.hitax.agent.model.ChatSession
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class AgentMessage(
     val role: String,
@@ -32,22 +34,19 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
     var busy by mutableStateOf(false)
         private set
     private var initJob: Job? = null
+    private val initMutex = Mutex()
 
     init {
         initJob = viewModelScope.launch { ensureSession() }
     }
 
-    private suspend fun ensureSession(): String {
-        currentSessionId?.let { return it }
+    private suspend fun ensureSession(): String = initMutex.withLock {
+        currentSessionId?.let { return@withLock it }
         val latest = repository.latest().await()
-        val session = latest ?: ChatSession().also {
-            repository.create(it).await()
-            currentSessionId = it.id
-            return it.id
-        }
+        val session = latest ?: ChatSession().also { repository.create(it).await() }
         currentSessionId = session.id
         restore(session.id)
-        return session.id
+        session.id
     }
 
     private suspend fun restore(sessionId: String) {
@@ -63,24 +62,28 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
         if (content.isEmpty() || busy) return
         busy = true
         viewModelScope.launch {
-            val sessionId = ensureSession()
-            append(sessionId, ChatMessageRecord.Role.USER, content)
-            messages += AgentMessage("user", content)
-            val history = messages
-                .filter { it.role == "user" || it.role == "assistant" }
-                .map { ChatMessage(role = it.role, content = it.text) }
-            when (val result = ShellChatService.chat(history, getApplication(), timetableId)) {
-                is LlmChatResult.Success -> {
-                    append(sessionId, ChatMessageRecord.Role.ASSISTANT, result.text)
-                    messages += AgentMessage("assistant", result.text)
+            try {
+                initJob?.join()
+                val sessionId = ensureSession()
+                append(sessionId, ChatMessageRecord.Role.USER, content)
+                messages += AgentMessage("user", content)
+                val history = messages
+                    .filter { it.role == "user" || it.role == "assistant" }
+                    .map { ChatMessage(role = it.role, content = it.text) }
+                when (val result = ShellChatService.chat(history, getApplication(), timetableId)) {
+                    is LlmChatResult.Success -> {
+                        append(sessionId, ChatMessageRecord.Role.ASSISTANT, result.text)
+                        messages += AgentMessage("assistant", result.text)
+                    }
+                    is LlmChatResult.Error -> {
+                        val error = "出错了：${result.error}"
+                        append(sessionId, ChatMessageRecord.Role.ASSISTANT, error)
+                        messages += AgentMessage("assistant", error)
+                    }
                 }
-                is LlmChatResult.Error -> {
-                    val error = "出错了：${result.error}"
-                    append(sessionId, ChatMessageRecord.Role.ASSISTANT, error)
-                    messages += AgentMessage("assistant", error)
-                }
+            } finally {
+                busy = false
             }
-            busy = false
         }
     }
 
@@ -92,6 +95,7 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
     fun switchToSession(sessionId: String) {
         if (busy || sessionId == currentSessionId) return
         viewModelScope.launch {
+            initJob?.join()
             currentSessionId = sessionId
             restore(sessionId)
         }
@@ -100,6 +104,7 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
     fun createNewSession() {
         if (busy) return
         viewModelScope.launch {
+            initJob?.join()
             val session = ChatSession()
             repository.create(session).await()
             currentSessionId = session.id
@@ -110,6 +115,7 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteSession(session: ChatSession) {
         if (busy) return
         viewModelScope.launch {
+            initJob?.join()
             val latest = repository.delete(session).await()
             if (currentSessionId == session.id) {
                 if (latest == null) createNewSession() else {
