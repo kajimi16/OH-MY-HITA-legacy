@@ -67,17 +67,11 @@ Shell 入口：
 - 助手页标题/会话栏/欢迎卡与上游误差 1px
 - 仍缺：附件选择与上传、资源卡片展示
 - 附件选择/上传（会话持久化、切换、删除已接）
-- 剩余 10 个工具：
-  - `search_timetable`
-  - `search_course`
-  - `get_course_detail`
-  - `search_external_resource`
-  - `web_search`
-  - `rag_search`
-  - `crawl_page`
-  - `crawl_site`
-  - `crawl_status`
-  - `submit_review`
+- 14 个工具已全部注册：
+  - 本地：`get_timetable`、`add_activity`、`search_empty_classroom`、`search_teacher`、`search_timetable`
+  - 资源/课程：`search_course`、`get_course_detail`、`search_external_resource`
+  - 远程：`web_search`、`rag_search`、`crawl_page`、`crawl_site`、`crawl_status`、`submit_review`
+- 限制：`search_external_resource` 只接 HOA（`ResourceDataService`），未接 HITCS/薪火
 
 ## API / 产物
 
@@ -103,3 +97,6 @@ Shell 入口：
 - 助手页坐标：标题 `[37,117][166,208]`，会话栏 `[64,320][575,383]`，欢迎卡 `[105,520][975,810]`
 - 与上游同页截图差异：全屏 `8.05%`，去掉状态栏/导航区 `7.29%`
 - 差异主因：附件按钮缺失、字体栅格化、底部 dock 背景
+- 远程工具设备测试：`searchCoursesSync("高等数学")`、`braveSearchSync` 通过
+- 后端健康检查：`https://api.hita.limpu.cn/health` 返回 `ok`
+- 既有仪器测试仍有 2 个失败（`ExampleInstrumentedTest`、未登录成绩测试），与本次无关
