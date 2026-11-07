@@ -29,6 +29,7 @@ class ReActToolRegistry {
             register("get_timetable", GetTimetableTool())
             register("add_activity", AddActivityTool())
             register("search_empty_classroom", SearchEmptyClassroomTool())
+            register("search_teacher", SearchTeacherTool())
         }
     }
 }
