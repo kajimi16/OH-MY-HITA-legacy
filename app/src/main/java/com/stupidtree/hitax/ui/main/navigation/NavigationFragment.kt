@@ -16,6 +16,7 @@ import com.stupidtree.hitax.utils.ImageUtils
 import com.stupidtree.stupiduser.data.repository.LocalUserRepository
 import com.stupidtree.style.widgets.PopUpText
 import com.stupidtree.hitax.data.source.preference.CourseReminderStore
+import com.stupidtree.hitax.livecourse.LiveCourseSettings
 import com.stupidtree.hitax.data.work.CourseReminderScheduler
 import com.stupidtree.hitax.utils.IcsImportUtils
 import android.content.Intent
@@ -104,6 +105,17 @@ class NavigationFragment : BaseFragment<NavigationViewModel, FragmentNavigationB
         }
         binding?.cardCourseReminder?.setOnClickListener {
             binding?.switchCourseReminder?.toggle()
+        }
+
+        // 直播课全局开关：关闭后只保留条目数据，闹钟触发不再拉起前台守护
+        binding?.switchLiveCourse?.isChecked = LiveCourseSettings.isEnabled(requireContext())
+        binding?.switchLiveCourse?.setOnCheckedChangeListener { _, isChecked ->
+            LiveCourseSettings.setEnabled(requireContext(), isChecked)
+            val msg = if (isChecked) "直播课守护已开启" else "直播课守护已关闭"
+            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+        }
+        binding?.cardLiveCourse?.setOnClickListener {
+            binding?.switchLiveCourse?.toggle()
         }
         
         // ICS 导入
