@@ -265,6 +265,9 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
             override fun onPageScrollStateChanged(state: Int) {}
         })
         binding.drawerButton.setOnClickListener { binding.drawer.openDrawer(GravityCompat.END) }
+        binding.runtimeDrawerButton.setOnClickListener { binding.drawer.openDrawer(GravityCompat.END) }
+        // ViewPager2 初始不会回调 onPageSelected；布局模式下必须主动切到 runtime header。
+        showHeaderFor(binding.pager.currentItem)
 
         binding.timetableSetting.setOnClickListener {
             pluginHost().service(com.stupidtree.hita.api.TimetableUiService.KEY)
@@ -483,9 +486,13 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     }
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-    /** 供占位页跳转到插件市场（第 4 个 tab）。 */
+    /** 供占位页跳转到插件市场；布局模式下市场已脱离底栏，必须开独立页面。 */
     fun openPluginMarket() {
-        binding.pager.currentItem = 3
+        if (layoutMode) {
+            startActivity(Intent(getThis(), com.stupidtree.hitax.market.PluginMarketActivity::class.java))
+        } else {
+            binding.pager.currentItem = 3
+        }
     }
 
     override fun onBackPressed() {
