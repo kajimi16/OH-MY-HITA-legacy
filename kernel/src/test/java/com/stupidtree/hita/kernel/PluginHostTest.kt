@@ -134,6 +134,25 @@ class PluginHostTest {
         assertNotNull(host.failures()["future"])
     }
 
+    /**
+     * 装载失败后重试同一个 id 必须能恢复：失败记录只描述“当前没装上”，
+     * 成功后要清掉，否则 PluginLoader 会把这次成功判成失败。
+     */
+    @Test
+    fun successfulRetryForgetsPreviousFailure() {
+        val host = newHost()
+        host.install(TestPlugin("flaky") { error("boom") })
+
+        assertNotNull(host.failures()["flaky"])
+        assertTrue(host.installedIds().isEmpty())
+
+        host.install(TestPlugin("flaky") { ctx -> ctx.provide(key, "recovered") })
+
+        assertNull(host.failures()["flaky"])
+        assertEquals(listOf("flaky"), host.installedIds())
+        assertEquals("recovered", host.service(key))
+    }
+
     @Test
     fun globalServiceIsVisibleToPluginsAndSurvivesUninstall() {
         val host = newHost()
