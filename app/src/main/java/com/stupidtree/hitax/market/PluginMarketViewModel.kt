@@ -128,6 +128,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                     )
                     availableUiPlugins.postValue(index.uiPlugins)
                     presets.postValue(index.presets.orEmpty())
+                    backfillLayoutIfNeeded(index.presets.orEmpty())
                     presetsLoaded.postValue(true)
                     status.postValue(if (offline) "网络不可用，正在显示缓存索引" else null)
                     pendingUpdates.postValue(countUpdatesOutsideActive())
@@ -140,6 +141,18 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                     status.postValue("读取索引失败：${it.message}")
                 }
         }
+    }
+
+    /**
+     * 存量补写：老版本宿主、或索引尚未发布 tabs 时装过整合包的用户，
+     * 本地只有 preset_id、没有 tabs_json。索引补上 tabs 后在这里补写一次，
+     * 避免必须手动重新应用整合包才能看到新布局。
+     */
+    private fun backfillLayoutIfNeeded(presets: List<MarketPreset>) {
+        val activeId = PresetStateStore.activeId(ctx()) ?: return
+        val tabs = PresetLayoutSync.tabsToBackfill(activeId, PresetLayoutStore.tabs(ctx()), presets) ?: return
+        PresetLayoutStore.save(ctx(), activeId, tabs)
+        reloadUi.postValue(true)
     }
 
     /** 统计安装来源不是当前源、但在原来源里有新版本的插件数量。 */
