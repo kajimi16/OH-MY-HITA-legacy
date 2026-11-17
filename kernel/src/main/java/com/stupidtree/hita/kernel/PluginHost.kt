@@ -117,6 +117,9 @@ class PluginHost(
         installedPlugins[plugin.id] = plugin
         try {
             plugin.install(scope)
+            // 同一 id 可能先前失败过（例如新版本装载失败后回滚到旧版本）。
+            // 成功装载必须清掉旧记录，否则 PluginLoader 会把这次成功误判成失败。
+            failures.remove(plugin.id)
             logger("plugin installed: ${plugin.id}", null)
         } catch (t: Throwable) {
             scope.revokeAll()
@@ -144,6 +147,7 @@ class PluginHost(
         scope.revokeAll()
         scopes.remove(pluginId)
         installedPlugins.remove(pluginId)
+        failures.remove(pluginId)
     }
 
     /**
