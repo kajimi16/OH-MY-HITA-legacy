@@ -865,6 +865,65 @@
                     android:layout_marginEnd="?attr/designSpacing"
                     android:background="?attr/colorPrimaryDisabled" />
 
+                <!-- 直播课全局开关 -->
+                <LinearLayout
+                    android:id="@+id/card_live_course"
+                    android:layout_width="match_parent"
+                    android:layout_height="64dp"
+                    android:orientation="horizontal"
+                    android:paddingStart="?attr/designSpacing"
+                    android:paddingEnd="?attr/designSpacing">
+
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_gravity="center"
+                        app:srcCompat="@drawable/ic_live_tv_24"
+                        app:tint="?attr/colorPrimary" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="?attr/designSpacing"
+                        android:layout_weight="1"
+                        android:gravity="center|start"
+                        android:orientation="vertical">
+
+                        <com.stupidtree.hitax.ui.widgets.FocusTextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:singleLine="true"
+                            android:text="直播课"
+                            android:textColor="?attr/textColorPrimary"
+                            android:textSize="16sp" />
+
+                        <com.stupidtree.hitax.ui.widgets.FocusTextView
+                            android:id="@+id/live_course_subtitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:singleLine="true"
+                            android:text="关闭后不再拉起前台守护"
+                            android:textColor="?attr/textColorSecondary"
+                            android:textSize="12sp" />
+
+                    </LinearLayout>
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/switch_live_course"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center" />
+
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="0.5dp"
+                    android:layout_marginStart="?attr/designSpacing"
+                    android:layout_marginEnd="?attr/designSpacing"
+                    android:background="?attr/colorPrimaryDisabled" />
+
                 <!-- ICS 导入 -->
                 <LinearLayout
                     android:id="@+id/card_ics_import"
