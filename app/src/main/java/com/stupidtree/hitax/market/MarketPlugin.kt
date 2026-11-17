@@ -70,7 +70,14 @@ data class PresetTab(
     /** 历史字段，保留解析兼容；宿主按 id 决定来源。 */
     val kind: String? = null,
     val order: Int = 0,
-    /** APK 插件内的图标资源路径，与 plugin.json 的 mainTabs 一致。 */
+    /**
+     * 底栏图标。
+     *
+     * - `builtin:<name>`：使用宿主内置矢量图，`<name>` 见 [BuiltinTabIcons.available]；
+     * - 其他字符串：APK 插件内的图标资源路径，与 plugin.json 的 mainTabs 一致。
+     *
+     * 解析失败（名字未知或资源缺失）时宿主回退到插件自带图标/通用图标。
+     */
     val iconAsset: String? = null,
 )
 
