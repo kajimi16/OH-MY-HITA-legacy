@@ -6,6 +6,21 @@ class EASToken {
 
     enum class TYPE { UNDERGRAD, GRAD }
 
+    /** 校区：移植 HITA_Android 3.1.2 的 EASToken.Campus，缺省深圳以兼容旧凭据。 */
+    enum class Campus {
+        SHENZHEN,
+        BENBU,
+        WEIHAI;
+
+        companion object {
+            fun from(raw: String?): Campus = when (raw?.trim()?.uppercase()) {
+                "BENBU" -> BENBU
+                "WEIHAI" -> WEIHAI
+                else -> SHENZHEN
+            }
+        }
+    }
+
     // --- 新 API (mjw.hitsz.edu.cn/incoSpringBoot) bearer token 认证 ---
     var accessToken: String? = null
     var refreshToken: String? = null
@@ -20,6 +35,7 @@ class EASToken {
     var password: String? = null
     var name: String? = null
     var stutype: TYPE = TYPE.UNDERGRAD // 培养类型，1本科生，其他研究生
+    var campus: Campus = Campus.SHENZHEN
     var picture: String? = null //照片
     var id: String? = null //学生id
     var stuId: String? = null //学号
