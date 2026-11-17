@@ -1342,8 +1342,6 @@ class EASource internal constructor() : EASService {
             return DataState(DataState.STATE.FETCH_FAILED, "网络请求失败 HTTP ${response.statusCode()}")
         }
         val rawBody = response.body()
-        // 仅用于离线固化解析测试：把响应体打到 logcat（不含请求头与任何凭据）
-        Log.d("EASExam", "examResp=" + rawBody.take(8000))
         val json = org.json.JSONObject(rawBody)
         if (json.optInt("code") != 200) {
             return DataState(DataState.STATE.FETCH_FAILED, json.optString("msg", "查询失败"))
