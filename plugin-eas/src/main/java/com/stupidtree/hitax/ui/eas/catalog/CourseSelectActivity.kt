@@ -16,6 +16,8 @@ import com.stupidtree.hitax.data.model.timetable.TermSubject
 import com.stupidtree.hitax.data.repository.EASRepository
 import com.stupidtree.hitax.data.source.preference.EasPreferenceSource
 import com.stupidtree.hitax.data.source.web.eas.EASource
+import com.stupidtree.hitax.eas.selectable.CourseMeetings
+import com.stupidtree.hitax.eas.selectable.SelectableCourse
 
 /**
  * 选课页（移植 HITA_Android 3.1.2 ShenzhenCourseCatalog 的前两步）：
@@ -46,7 +48,8 @@ class CourseSelectActivity : AppCompatActivity() {
     private var term: TermItem? = null
     private var page = 1
     private var keyword = ""
-    private var subjects: MutableList<TermSubject> = mutableListOf()
+    private var subjects: MutableList<SelectableCourse> = mutableListOf()
+    private val picked = mutableListOf<SelectableCourse>()
     private lateinit var listView: ListView
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var poolSpinner: Spinner
@@ -105,9 +108,16 @@ class CourseSelectActivity : AppCompatActivity() {
         setContentView(root)
 
         listView.setOnItemClickListener { _, _, position, _ ->
-            val subject = subjects.getOrNull(position) ?: return@setOnItemClickListener
+            val course = subjects.getOrNull(position) ?: return@setOnItemClickListener
+            val subject = course.subject
             val currentTerm = term ?: return@setOnItemClickListener
             val courseId = subject.key ?: return@setOnItemClickListener
+            val conflict = CourseMeetings.conflict(course, picked)
+            if (conflict != null) {
+                toast(conflict)
+                return@setOnItemClickListener
+            }
+            picked += course
             // 先记草稿（离线可见），再调用教务加购物车
             CourseSelectionDraft.toggle(
                 this,
@@ -148,7 +158,7 @@ class CourseSelectActivity : AppCompatActivity() {
             labels += "加载中…"
             adapter.notifyDataSetChanged()
         }
-        source.getAvailableCourses(token(), currentTerm, pool.code, targetPage, 20, keyword)
+        source.getSelectableCourses(token(), currentTerm, pool.code, targetPage, 20, keyword)
             .observe(this) { state ->
                 if (targetPage == 1 && labels.firstOrNull() == "加载中…") {
                     labels.clear()
@@ -166,7 +176,11 @@ class CourseSelectActivity : AppCompatActivity() {
                 val items = state.data.orEmpty()
                 page = targetPage
                 subjects.addAll(items)
-                items.forEach { labels += "${it.name}（${it.code}）· ${it.credit} 学分" }
+                items.forEach {
+                    val meet = it.meetings.firstOrNull()
+                    val where = if (meet != null) " · 周${CourseMeetings.weekdayName(meet.weekday)}第${meet.beginPeriod}-${meet.endPeriod}节" else ""
+                    labels += "${it.subject.name}（${it.subject.code}）· ${it.subject.credit} 学分$where"
+                }
                 if (labels.isEmpty()) labels += "【${pool.name}】暂无可选课程"
                 adapter.notifyDataSetChanged()
                 moreButton.isEnabled = items.size >= 20

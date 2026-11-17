@@ -1450,4 +1450,48 @@ class EASource internal constructor() : EASService {
         }.start()
         return res
     }
+
+    /** 可选课程 + meetings（移植 3.1.2 目录解析），用于冲突检测。 */
+    fun getSelectableCourses(
+        token: EASToken,
+        term: TermItem,
+        poolCode: String = "bx-b-b",
+        page: Int = 1,
+        pageSize: Int = 20,
+        keyword: String = "",
+    ): LiveData<DataState<List<com.stupidtree.hitax.eas.selectable.SelectableCourse>>> {
+        val res = MutableLiveData<DataState<List<com.stupidtree.hitax.eas.selectable.SelectableCourse>>>()
+        Thread {
+            val result = mutableListOf<com.stupidtree.hitax.eas.selectable.SelectableCourse>()
+            try {
+                val body = """{"RoleCode":"01","p_pylx":"${token.getStudentType()}","p_xn":"${term.yearCode}","p_xq":"${term.termCode}","p_xnxq":"${term.getCode()}","p_gjz":"","p_kc_gjz":"$keyword","p_xkfsdm":"$poolCode","pageNum":$page,"pageSize":$pageSize}"""
+                val resp = jsonPost(token, "/app/Xsxk/queryKxrw?_lang=zh_CN", body)
+                val jo = JsonUtils.getJsonObject(resp.body())
+                jo?.optJSONArray("yxkcList")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val item = arr.optJSONObject(i) ?: continue
+                        val subject = TermSubject()
+                        val rawCode = item.optString("kcdm")
+                        subject.code = CourseCodeUtils.normalize(rawCode) ?: rawCode
+                        subject.name = item.optString("kcmc", "")
+                        subject.school = item.optString("kkyxmc")
+                        subject.credit = item.optString("xf").toFloatOrNull() ?: 0f
+                        subject.key = item.optString("id")
+                        subject.field = optStringFirst(item, listOf("kclbmc", "KCLBMC"))
+                        val schedule = optStringFirst(item, listOf("pkjgmx", "sksj"))
+                        val teacher = optStringFirst(item, listOf("dgjsmc", "jsmc"))
+                        result += com.stupidtree.hitax.eas.selectable.SelectableCourse(
+                            subject = subject,
+                            meetings = com.stupidtree.hitax.eas.selectable.CourseMeetings.parse(item, schedule, teacher),
+                        )
+                    }
+                }
+                res.postValue(DataState(result))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                res.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
+            }
+        }.start()
+        return res
+    }
 }
