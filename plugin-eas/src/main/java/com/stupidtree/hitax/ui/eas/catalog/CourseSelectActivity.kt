@@ -17,6 +17,7 @@ import com.stupidtree.hitax.data.repository.EASRepository
 import com.stupidtree.hitax.data.source.preference.EasPreferenceSource
 import com.stupidtree.hitax.data.source.web.eas.EASource
 import com.stupidtree.hitax.eas.selectable.CourseMeetings
+import com.stupidtree.hitax.eas.selectable.CoursePlanPreview
 import com.stupidtree.hitax.eas.selectable.SelectableCourse
 
 /**
@@ -56,6 +57,7 @@ class CourseSelectActivity : AppCompatActivity() {
     private lateinit var keywordInput: EditText
     private lateinit var moreButton: Button
     private lateinit var draftBar: Button
+    private lateinit var previewButton: Button
 
     private val labels = mutableListOf<String>()
 
@@ -88,6 +90,10 @@ class CourseSelectActivity : AppCompatActivity() {
         draftBar = Button(this).apply {
             setOnClickListener { clearDraft() }
         }
+        previewButton = Button(this).apply {
+            text = "预览已选课程"
+            setOnClickListener { showPreview() }
+        }
         listView = ListView(this)
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
         listView.adapter = adapter
@@ -102,6 +108,7 @@ class CourseSelectActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             addView(row)
             addView(draftBar)
+            addView(previewButton)
             addView(listView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(moreButton)
         }
@@ -198,6 +205,33 @@ class CourseSelectActivity : AppCompatActivity() {
         CourseSelectionDraft.clear(this, term.getCode())
         refreshDraftBar()
         toast("已清空选课草稿")
+    }
+
+    /** 周预览：按上游 eventsForWeek 规则列出所选周的课程事件；无法投影的课程单独提示。 */
+    private fun showPreview() {
+        if (picked.isEmpty()) {
+            toast("还没有已选课程")
+            return
+        }
+        val periodCount = 12
+        val maxWeek = CoursePlanPreview.maxWeek(picked)
+        val week = maxWeek.coerceAtMost(1)
+        val events = CoursePlanPreview.eventsForWeek(picked, week, periodCount)
+        val incomplete = CoursePlanPreview.incomplete(picked, periodCount)
+        val lines = mutableListOf<String>()
+        events.forEach { e ->
+            val place = if (e.location.isNotBlank()) " · ${e.location}" else ""
+            lines += "周${CourseMeetings.weekdayName(e.weekday)} 第${e.beginPeriod}-${e.endPeriod}节 · ${e.name}$place"
+        }
+        if (incomplete.isNotEmpty()) {
+            lines += "无法投影：" + incomplete.joinToString("、") { it.subject.name }
+        }
+        if (lines.isEmpty()) lines += "第${week}周没有排课"
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("选课预览（第${week}周 / 共${maxWeek}周）")
+            .setItems(lines.toTypedArray(), null)
+            .setPositiveButton("关闭", null)
+            .show()
     }
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
