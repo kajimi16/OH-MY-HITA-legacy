@@ -5,6 +5,13 @@ import java.net.URL
 
 internal object NoticeFetcher {
 
+    /** 按校区取源：不支持的校区在这里直接拒绝，不要落到深圳解析器上。 */
+    fun fetch(cookie: String, feed: NoticeFeeds.Feed): List<CampusNotice> {
+        NoticeFeeds.unsupportedMessage(feed)?.let { error(it) }
+        val urlBuilder = feed.listUrl ?: error("该校区通知尚未移植（${feed.label}）")
+        return fetch(cookie, urlBuilder)
+    }
+
     fun fetch(
         cookie: String,
         listUrl: (Int) -> String = NoticeParser::listUrl,
