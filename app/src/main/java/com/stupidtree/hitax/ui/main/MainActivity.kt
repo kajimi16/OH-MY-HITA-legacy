@@ -60,6 +60,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
 
     /** 当前整合包是否声明了自己的底栏布局（复刻型预设）；为真时不再拼内置 4 基页。 */
     private var layoutMode = false
+    private var presetBackfillRecreated = false
 
     private data class Page(
         val id: Int,
@@ -231,6 +232,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     override fun initViews() {
         setUpDrawer()
         maybeShowPresetOnboarding()
+        backfillPresetLayoutOnStartup()
         //  binding.title.text = binding.navView.menu.getItem(0).title
         pages = buildPages()
         binding.navView.submit(
@@ -373,6 +375,25 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
             }
             .setNeutralButton("稍后", null)
             .show()
+    }
+
+    /**
+     * 存量用户的底栏补写必须在普通启动路径触发：
+     * 仅当已启用整合包且本地没有 tabs 时创建市场 ViewModel，
+     * 索引加载完成后由 PresetLayoutSync 写入布局并发出 reloadUi。
+     */
+    private fun backfillPresetLayoutOnStartup() {
+        val activeId = com.stupidtree.hitax.market.PresetStateStore.activeId(this) ?: return
+        if (activeId.isBlank()) return
+        if (com.stupidtree.hitax.market.PresetLayoutStore.tabs(this).isNotEmpty()) return
+        val vm = ViewModelProvider(this)[PluginMarketViewModel::class.java]
+        vm.reloadUi.observe(this) { reload ->
+            if (reload && !isFinishing && !presetBackfillRecreated) {
+                presetBackfillRecreated = true
+                vm.consumeReloadUi()
+                recreate()
+            }
+        }
     }
 
     /** 读取市场索引并弹出整合包列表；失败时回退到插件市场。 */
