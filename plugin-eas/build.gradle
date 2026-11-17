@@ -38,4 +38,8 @@ dependencies {
     implementation 'com.github.bumptech.glide:glide:4.16.0'
     implementation 'org.jsoup:jsoup:1.18.2'
 }
-dependencies { testImplementation 'junit:junit:4.13.2' }
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    // 单测需要真实的 org.json：Android 桩实现无法断言 scheduleList 内容
+    testImplementation "org.json:json:20240303"
+}
