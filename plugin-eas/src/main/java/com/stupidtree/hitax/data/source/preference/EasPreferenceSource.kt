@@ -26,6 +26,7 @@ class EasPreferenceSource(context: Context) {
             .putString("webBaseUrl", token.webBaseUrl)
             .putString("name", token.name)
             .putString("stutype", token.getStudentType())
+            .putString("campus", token.campus.name)
             .putString("picture", token.picture)
             .putString("id", token.id)
             .putString("stuId", token.stuId)
@@ -57,6 +58,7 @@ class EasPreferenceSource(context: Context) {
         result.stutype = if (preference.getString("stutype", "1")
                 .equals("1")
         ) EASToken.TYPE.UNDERGRAD else EASToken.TYPE.GRAD
+        result.campus = EASToken.Campus.from(preference.getString("campus", null))
         result.picture = preference.getString("picture", null)
         result.id = preference.getString("id", null)
         result.stuId = preference.getString("stuId", null)
