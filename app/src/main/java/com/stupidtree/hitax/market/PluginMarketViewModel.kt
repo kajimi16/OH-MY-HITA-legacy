@@ -448,6 +448,8 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
             }
             if (failures.isEmpty()) {
                 PresetStateStore.setActive(ctx(), preset.id)
+                // 预设带了 tabs 就让底栏按它组装；没有则清空，退回内置布局
+                PresetLayoutStore.save(ctx(), preset.id, preset.tabs)
                 activePresetId.postValue(preset.id)
             }
 

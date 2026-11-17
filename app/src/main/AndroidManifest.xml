@@ -102,6 +102,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".market.PluginMarketActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
+
+        <activity
             android:name=".widget.PluginWidgetConfigureActivity"
             android:exported="true" />
 

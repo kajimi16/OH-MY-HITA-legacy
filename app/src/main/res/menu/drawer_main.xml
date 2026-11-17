@@ -11,6 +11,10 @@
         android:id="@+id/drawer_nav_timetable_manager"
         android:icon="@drawable/ic_menu_settings"
         android:title="@string/menu_timeable_curriculum" />
+    <item
+        android:id="@+id/drawer_nav_market"
+        android:icon="@drawable/ic_nav_plugin"
+        android:title="@string/market_entry" />
 <!--    <item-->
 <!--        android:id="@+id/drawer_nav_report"-->
 <!--        android:icon="@drawable/ic_menu_bug_report"-->
