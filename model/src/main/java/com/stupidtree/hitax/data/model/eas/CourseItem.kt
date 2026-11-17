@@ -15,6 +15,10 @@ class CourseItem {
     var begin = -1
     var last = -1
 
+    /** 实验课用具体时间（`HH:mm`），普通课为 null；对应 begin/last 为 -1。 */
+    var startTime: String? = null
+    var endTime: String? = null
+
 
     override fun toString(): String {
         return Gson().toJson(this)
@@ -33,6 +37,8 @@ class CourseItem {
         if (dow != other.dow) return false
         if (begin != other.begin) return false
         if (last != other.last) return false
+        if (startTime != other.startTime) return false
+        if (endTime != other.endTime) return false
 
         return true
     }
@@ -45,6 +51,8 @@ class CourseItem {
         result = 31 * result + dow
         result = 31 * result + begin
         result = 31 * result + last
+        result = 31 * result + (startTime?.hashCode() ?: 0)
+        result = 31 * result + (endTime?.hashCode() ?: 0)
         return result
     }
 }
