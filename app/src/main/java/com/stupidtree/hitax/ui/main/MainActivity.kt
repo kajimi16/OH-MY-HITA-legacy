@@ -622,33 +622,50 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
             val title = tab.title?.takeIf { it.isNotBlank() } ?: tab.id
             when {
                 tab.id == "hita.timeline" -> Page(
-                    R.id.navigation_timeline, title, R.drawable.ic_nav_today,
+                    R.id.navigation_timeline,
+                    title,
+                    com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
+                        ?: R.drawable.ic_nav_today,
                 ) {
                     host.tabs.find("hita.timeline")?.let { it.create() }
                         ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
                 }
 
                 tab.id == "hita.timetable" -> Page(
-                    R.id.navigation_timetable, title, R.drawable.ic_nav_timetable,
+                    R.id.navigation_timetable,
+                    title,
+                    com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
+                        ?: R.drawable.ic_nav_timetable,
                 ) {
                     host.tabs.find("hita.timetable")?.let { it.create() }
                         ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
                 }
 
                 tab.id == "hita.more" -> Page(
-                    R.id.navigation_navigation, title, R.drawable.ic_nav_navigation,
+                    R.id.navigation_navigation,
+                    title,
+                    com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
+                        ?: R.drawable.ic_nav_navigation,
                 ) { NavigationFragment() }
 
                 uiTabs[tab.id] != null -> {
                     val installed = uiTabs.getValue(tab.id)
+                    // 预设写 builtin: 时用宿主内置图标，否则退回插件自带图标
+                    val builtinIcon = com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
                     Page(
                         2000 + index,
                         title,
-                        R.drawable.ic_nav_plugin,
-                        icon = uiManager.loadMainTabIcon(
-                            installed.plugin,
-                            tab.iconAsset ?: installed.spec.iconAsset,
-                        ),
+                        builtinIcon ?: R.drawable.ic_nav_plugin,
+                        icon = if (builtinIcon != null) {
+                            null
+                        } else {
+                            uiManager.loadMainTabIcon(
+                                installed.plugin,
+                                tab.iconAsset
+                                    ?.takeUnless(com.stupidtree.hitax.market.BuiltinTabIcons::isBuiltin)
+                                    ?: installed.spec.iconAsset,
+                            )
+                        },
                     ) {
                         com.stupidtree.hitax.uiplugin.RuntimeUiTabFragment.newInstance(
                             installed.plugin.id,
@@ -657,13 +674,20 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                     }
                 }
 
-                else -> host.tabs.find(tab.id)?.let { contribution ->
-                    Page(
-                        1000 + index,
-                        if (title == tab.id) title else title,
-                        if (contribution.iconRes != 0) contribution.iconRes else R.drawable.ic_nav_plugin,
-                        create = contribution.create,
-                    )
+                else -> {
+                    val contribution = host.tabs.find(tab.id)
+                    val icon = com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
+                        ?: contribution?.iconRes?.takeIf { it != 0 }
+                        ?: R.drawable.ic_nav_plugin
+                    if (contribution != null) {
+                        Page(1000 + index, title, icon, create = contribution.create)
+                    } else {
+                        // 预设声明了但对应插件没装：给占位页而不是丢掉这个 tab，
+                        // 否则底栏会少一格，与 3.1.2 的固定 6 个入口对不上。
+                        Page(3000 + index, title, icon) {
+                            PluginUnavailableFragment.newInstance(tab.id)
+                        }
+                    }
                 }
             }
         }
