@@ -58,6 +58,9 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
 
     private val baseTabIds = setOf("hita.timeline", "hita.timetable")
 
+    /** 当前整合包是否声明了自己的底栏布局（复刻型预设）；为真时不再拼内置 4 基页。 */
+    private var layoutMode = false
+
     private data class Page(
         val id: Int,
         val title: String,
@@ -154,6 +157,12 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 }
                 R.id.drawer_nav_about -> {
                     ActivityUtils.startActivity(getThis(), ActivityAbout::class.java)
+                }
+                R.id.drawer_nav_market -> {
+                    // 市场不再占底栏槽位（复刻型预设没有这个 tab），统一从抽屉进入
+                    startActivity(
+                        android.content.Intent(getThis(), com.stupidtree.hitax.market.PluginMarketActivity::class.java)
+                    )
                 }
                 else -> {
                     val entry = pluginMenuIds[item.itemId]
@@ -516,6 +525,9 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
      */
     private fun buildPages(): List<Page> {
         val host = (application as HApplication).pluginHost
+        val layout = com.stupidtree.hitax.market.PresetLayoutStore.tabs(this)
+        layoutMode = layout.isNotEmpty()
+        if (layoutMode) return layoutPages(layout)
         val result = mutableListOf(
             Page(
                 R.id.navigation_timeline,
@@ -568,7 +580,80 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
         return result
     }
 
+    /**
+     * 按整合包声明的 tabs 组装底栏。
+     *
+     * 复刻型预设（hita-android-3.1.2）用它把底栏固定成与上游一致的 6 个位置，
+     * 顺序、标题都由预设决定，不受插件注册顺序影响。
+     */
+    private fun layoutPages(tabs: List<com.stupidtree.hitax.market.PresetTab>): List<Page> {
+        val host = (application as HApplication).pluginHost
+        val uiManager = com.stupidtree.hitax.uiplugin.UiPluginManager(this)
+        val uiTabs = uiManager.mainTabs().associateBy { it.plugin.id }
+        return tabs.sortedBy { it.order }.mapIndexedNotNull { index, tab ->
+            val title = tab.title?.takeIf { it.isNotBlank() } ?: tab.id
+            when {
+                tab.id == "hita.timeline" -> Page(
+                    R.id.navigation_timeline, title, R.drawable.ic_nav_today,
+                ) {
+                    host.tabs.find("hita.timeline")?.let { it.create() }
+                        ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
+                }
+
+                tab.id == "hita.timetable" -> Page(
+                    R.id.navigation_timetable, title, R.drawable.ic_nav_timetable,
+                ) {
+                    host.tabs.find("hita.timetable")?.let { it.create() }
+                        ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
+                }
+
+                tab.id == "hita.more" -> Page(
+                    R.id.navigation_navigation, title, R.drawable.ic_nav_navigation,
+                ) { NavigationFragment() }
+
+                uiTabs[tab.id] != null -> {
+                    val installed = uiTabs.getValue(tab.id)
+                    Page(
+                        2000 + index,
+                        title,
+                        R.drawable.ic_nav_plugin,
+                        icon = uiManager.loadMainTabIcon(
+                            installed.plugin,
+                            tab.iconAsset ?: installed.spec.iconAsset,
+                        ),
+                    ) {
+                        com.stupidtree.hitax.uiplugin.RuntimeUiTabFragment.newInstance(
+                            installed.plugin.id,
+                            installed.spec,
+                        )
+                    }
+                }
+
+                else -> host.tabs.find(tab.id)?.let { contribution ->
+                    Page(
+                        1000 + index,
+                        if (title == tab.id) title else title,
+                        if (contribution.iconRes != 0) contribution.iconRes else R.drawable.ic_nav_plugin,
+                        create = contribution.create,
+                    )
+                }
+            }
+        }
+    }
+
     private fun showHeaderFor(position: Int) {
+        if (layoutMode) {
+            // 布局模式下页面自带标题，宿主只保留一个通用 header 显示当前页名
+            listOf(
+                binding.todayLayout,
+                binding.timetableLayout,
+                binding.navigationLayout,
+                binding.pluginLayout,
+            ).forEach { it.visibility = GONE }
+            binding.runtimeLayout.visibility = VISIBLE
+            binding.runtimeTitle.text = pages.getOrNull(position)?.title.orEmpty()
+            return
+        }
         val headers = listOf(
             binding.todayLayout,
             binding.timetableLayout,
