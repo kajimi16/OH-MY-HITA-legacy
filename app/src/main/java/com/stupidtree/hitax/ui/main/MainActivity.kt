@@ -379,13 +379,15 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
 
     /**
      * 存量用户的底栏补写必须在普通启动路径触发：
-     * 仅当已启用整合包且本地没有 tabs 时创建市场 ViewModel，
+     * 仅当已启用整合包且本地 tabs 为空或缺少 iconAsset 时创建市场 ViewModel，
      * 索引加载完成后由 PresetLayoutSync 写入布局并发出 reloadUi。
      */
     private fun backfillPresetLayoutOnStartup() {
         val activeId = com.stupidtree.hitax.market.PresetStateStore.activeId(this) ?: return
         if (activeId.isBlank()) return
-        if (com.stupidtree.hitax.market.PresetLayoutStore.tabs(this).isNotEmpty()) return
+        val stored = com.stupidtree.hitax.market.PresetLayoutStore.tabs(this)
+        // 布局已完整（含图标）才跳过；缺 iconAsset 时也要启动同步，否则存量用户永远用回退图标。
+        if (stored.isNotEmpty() && stored.none { it.iconAsset.isNullOrBlank() }) return
         val vm = ViewModelProvider(this)[PluginMarketViewModel::class.java]
         vm.reloadUi.observe(this) { reload ->
             if (reload && !isFinishing && !presetBackfillRecreated) {

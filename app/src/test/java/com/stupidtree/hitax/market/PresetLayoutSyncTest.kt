@@ -114,4 +114,51 @@ class PresetLayoutSyncTest {
             ),
         )
     }
+
+    @Test
+    fun mergesMissingIconAssetsWithoutChangingStoredOrder() {
+        val stored = sixTabs.map { it.copy(iconAsset = null) }
+        val indexed = sixTabs.mapIndexed { index, tab ->
+            tab.copy(iconAsset = "builtin:icon$index")
+        }
+
+        val result = PresetLayoutSync.tabsToBackfill(
+            "hita-android-3.1.2",
+            stored,
+            listOf(preset("hita-android-3.1.2", indexed)),
+        )
+
+        assertEquals(indexed.map { it.iconAsset }, result?.map { it.iconAsset })
+        assertEquals(stored.map { it.id }, result?.map { it.id })
+        assertEquals(stored.map { it.title }, result?.map { it.title })
+    }
+
+    @Test
+    fun keepsExistingCustomIconAndSkipsWhenNothingToMerge() {
+        val stored = sixTabs.mapIndexed { index, tab ->
+            tab.copy(iconAsset = if (index == 0) "custom:icon" else null)
+        }
+        val indexed = sixTabs.map { it.copy(iconAsset = "builtin:icon") }
+
+        val result = PresetLayoutSync.tabsToBackfill(
+            "hita-android-3.1.2",
+            stored,
+            listOf(preset("hita-android-3.1.2", indexed)),
+        )
+
+        assertEquals("custom:icon", result?.first()?.iconAsset)
+        assertEquals("builtin:icon", result?.get(1)?.iconAsset)
+    }
+
+    @Test
+    fun doesNothingWhenAllStoredTabsAlreadyHaveIcons() {
+        val stored = sixTabs.map { it.copy(iconAsset = "builtin:check") }
+        assertNull(
+            PresetLayoutSync.tabsToBackfill(
+                "hita-android-3.1.2",
+                stored,
+                listOf(preset("hita-android-3.1.2", sixTabs.map { it.copy(iconAsset = "builtin:today") })),
+            ),
+        )
+    }
 }
