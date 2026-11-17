@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- 仅 debug：把选课页导出，便于 adb 直接拉起做数据验证；release 保持 exported=false -->
+    <application>
+        <activity
+            android:name="com.stupidtree.hitax.ui.eas.catalog.CourseSelectActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
+    </application>
+</manifest>

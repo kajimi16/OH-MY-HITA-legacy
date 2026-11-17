@@ -16,5 +16,8 @@
         <activity
             android:name="com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity"
             android:exported="false" />
+        <activity
+            android:name="com.stupidtree.hitax.ui.eas.catalog.CourseSelectActivity"
+            android:exported="false" />
     </application>
 </manifest>

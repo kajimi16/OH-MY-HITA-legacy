@@ -41,5 +41,20 @@ class EasPlugin(private val application: Application) : Plugin {
         ctx.provide(com.stupidtree.hita.api.ExamService.KEY, object : com.stupidtree.hita.api.ExamService {
             override fun exams() = com.stupidtree.hitax.data.repository.EASRepository.getInstance(application).getExamInfo()
         })
+
+        // 选课入口：3.1.2 的选课目录在侧边入口，这里先注册抽屉项
+        ctx.nav.register(
+            com.stupidtree.hita.api.NavEntry(
+                id = "eas.course_select",
+                titleRes = com.stupidtree.hita.eas.R.string.eas_course_select,
+                iconRes = 0,
+                order = 45,
+            ) { context ->
+                android.content.Intent(
+                    context,
+                    com.stupidtree.hitax.ui.eas.catalog.CourseSelectActivity::class.java,
+                )
+            }
+        )
     }
 }
