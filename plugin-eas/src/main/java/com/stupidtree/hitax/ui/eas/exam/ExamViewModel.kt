@@ -2,10 +2,10 @@ package com.stupidtree.hitax.ui.eas.exam
 
 import android.app.Application
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.switchMap
 import com.stupidtree.component.data.DataState
-import com.stupidtree.component.data.MTransformations
 import com.stupidtree.component.data.Trigger
 import com.stupidtree.hitax.data.model.eas.ExamItem
 import com.stupidtree.hitax.data.model.eas.TermItem
@@ -13,79 +13,64 @@ import com.stupidtree.hitax.data.repository.EASRepository
 import com.stupidtree.hitax.data.source.local.ExamMemoStore
 import com.stupidtree.hitax.ui.eas.EASViewModel
 
-class ExamViewModel(application: Application) : EASViewModel(application){
-    /**
-     * 仓库区
-     */
+class ExamViewModel(application: Application) : EASViewModel(application) {
     private val easRepository = EASRepository.getInstance(application)
     private val memoStore = ExamMemoStore(application)
 
-    /**
-     * LiveData区
-     */
     private val pageController = MutableLiveData<Trigger>()
 
     val termsLiveData: LiveData<DataState<List<TermItem>>> = pageController.switchMap {
-        return@switchMap easRepository.getAllTerms()
+        easRepository.getAllTerms()
     }
 
     val selectedTermLiveData: MutableLiveData<TermItem> = MutableLiveData()
-    val selectedExamTypeLiveData: MutableLiveData<ExamType> = MutableLiveData()
+    val selectedExamTypeLiveData: MutableLiveData<ExamType> = MutableLiveData(ExamType.ALL)
+
+    /** 最近一次教务返回的考试；删备忘录时不能把它一起丢掉。 */
+    private var serverExams: List<ExamItem> = emptyList()
+
+    private val mergedExams = MediatorLiveData<List<ExamItem>>()
+
+    /** 合并源或任一筛选条件变化都会重算，不依赖界面手动调用刷新。 */
+    val examInfoLiveData: LiveData<DataState<List<ExamItem>>> =
+        MediatorLiveData<DataState<List<ExamItem>>>().apply {
+            addSource(mergedExams) { publish(this) }
+            addSource(selectedTermLiveData) { publish(this) }
+            addSource(selectedExamTypeLiveData) { publish(this) }
+        }
 
     init {
-        // MTransformations.map 的双源版本要两个源都有值才 emit；
-        // 不预设“全部”，考试数据到了也不会合并到页面（表现为空态）。
-        selectedExamTypeLiveData.value = ExamType.ALL
-    }
-
-        /**
-     * 教务真实考试 + 本地备忘录的合并源（页面观察 examInfoLiveData 时才会激活）。
-     * MediatorLiveData 是懒的：没有人观察它，addSource 的上游就不会执行。
-     */
-    private val mergedExams =
-        androidx.lifecycle.MediatorLiveData<DataState<List<ExamItem>>>().apply {
-            addSource(easRepository.getExamInfo()) { state ->
-                val server = state.data
-                if (state.state == DataState.STATE.SUCCESS) {
-                    value = DataState(
-                        (if (server.isNullOrEmpty()) emptyList() else server) + memoStore.load(),
-                        DataState.STATE.SUCCESS,
-                    )
-                }
+        mergedExams.addSource(easRepository.getExamInfo()) { state ->
+            if (state.state == DataState.STATE.SUCCESS) {
+                serverExams = state.data.orEmpty()
+                mergedExams.value = serverExams + memoStore.load()
             }
         }
-
-    val examInfoLiveData: LiveData<DataState<List<ExamItem>>> =
-        MTransformations.map(mergedExams) { state ->
-            val data = state.data
-            if (state.state != DataState.STATE.SUCCESS || data.isNullOrEmpty()) {
-                return@map state
-            }
-            val term = selectedTermLiveData.value
-            val type = selectedExamTypeLiveData.value
-            val filtered = data.filter { item -> matchTerm(item, term) && matchType(item.examType, type) }
-            DataState(filtered, state.state)
-        }
-
-    /** 学期/类型切换时重新套一次过滤（单源 map 不会因过滤条件变化而自动重算）。 */
-    fun refreshFilter() {
-        mergedExams.value = mergedExams.value
     }
 
-    /**
-     * 方法区
-     */
+    private fun publish(target: MutableLiveData<DataState<List<ExamItem>>>) {
+        val data = mergedExams.value ?: return
+        val term = selectedTermLiveData.value
+        val type = selectedExamTypeLiveData.value
+        target.value = DataState(
+            data.filter { matchTerm(it, term) && matchType(it.examType, type) },
+            DataState.STATE.SUCCESS,
+        )
+    }
+
     fun startRefresh() {
         pageController.value = Trigger.actioning
-        mergedExams.value = DataState(memoStore.load(), DataState.STATE.SUCCESS)
+        mergedExams.value = serverExams + memoStore.load()
     }
 
     fun addMemo(item: ExamItem) {
-        mergedExams.value = DataState(memoStore.add(item) + (mergedExams.value?.data.orEmpty().filter { m -> m.memoId != item.memoId }), DataState.STATE.SUCCESS)
+        memoStore.add(item)
+        mergedExams.value = serverExams + memoStore.load()
     }
 
     fun deleteMemo(memoId: String) {
-        mergedExams.value = DataState(memoStore.delete(memoId), DataState.STATE.SUCCESS)
+        memoStore.delete(memoId)
+        mergedExams.value = serverExams + memoStore.load()
     }
 
     private fun matchTerm(item: ExamItem, term: TermItem?): Boolean {
@@ -130,5 +115,4 @@ class ExamViewModel(application: Application) : EASViewModel(application){
         MIDTERM,
         FINAL
     }
-
 }
