@@ -834,8 +834,8 @@
     <string name="plugin_uninstall_clear">卸载并清除数据</string>
     <string name="plugin_uninstall_keep">卸载，保留数据</string>
 
-    <string name="plugin_unavailable_title">「%1$s」已卸载</string>
-    <string name="plugin_unavailable_hint">该功能由内置插件提供，可在插件市场重新启用。</string>
+    <string name="plugin_unavailable_title">「%1$s」当前不可用</string>
+    <string name="plugin_unavailable_hint">该功能由插件提供，可在插件市场安装或启用。</string>
     <string name="plugin_unavailable_action">去插件市场</string>
 
     <!-- 运行时界面插件（Compose 容器） -->
