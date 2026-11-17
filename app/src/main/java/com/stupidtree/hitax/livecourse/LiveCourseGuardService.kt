@@ -24,6 +24,7 @@ class LiveCourseGuardService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!LiveCourseSettings.isEnabled(this)) { stopSelf(); return START_NOT_STICKY }
         val owner = intent?.getStringExtra(LiveCourseAlarm.EXTRA_OWNER)
         val id = intent?.getStringExtra(LiveCourseAlarm.EXTRA_ID)
         if (owner == null || id == null) { stopSelf(); return START_NOT_STICKY }
