@@ -32,40 +32,60 @@ class ExamViewModel(application: Application) : EASViewModel(application){
     val selectedTermLiveData: MutableLiveData<TermItem> = MutableLiveData()
     val selectedExamTypeLiveData: MutableLiveData<ExamType> = MutableLiveData()
 
-    private val rawExamLiveData = MutableLiveData<DataState<List<ExamItem>>>()
+    init {
+        // MTransformations.map 的双源版本要两个源都有值才 emit；
+        // 不预设“全部”，考试数据到了也不会合并到页面（表现为空态）。
+        selectedExamTypeLiveData.value = ExamType.ALL
+    }
 
-    private val filterLiveData =
-        MTransformations.map(selectedTermLiveData, selectedExamTypeLiveData) { it }
+        /**
+     * 教务真实考试 + 本地备忘录的合并源（页面观察 examInfoLiveData 时才会激活）。
+     * MediatorLiveData 是懒的：没有人观察它，addSource 的上游就不会执行。
+     */
+    private val mergedExams =
+        androidx.lifecycle.MediatorLiveData<DataState<List<ExamItem>>>().apply {
+            addSource(easRepository.getExamInfo()) { state ->
+                val server = state.data
+                if (state.state == DataState.STATE.SUCCESS) {
+                    value = DataState(
+                        (if (server.isNullOrEmpty()) emptyList() else server) + memoStore.load(),
+                        DataState.STATE.SUCCESS,
+                    )
+                }
+            }
+        }
 
     val examInfoLiveData: LiveData<DataState<List<ExamItem>>> =
-        MTransformations.map(rawExamLiveData, filterLiveData) { pair ->
-            val state = pair.first
-            val term = pair.second.first
-            val type = pair.second.second
+        MTransformations.map(mergedExams) { state ->
             val data = state.data
             if (state.state != DataState.STATE.SUCCESS || data.isNullOrEmpty()) {
                 return@map state
             }
-            val filtered = data.filter { item ->
-                matchTerm(item, term) && matchType(item.examType, type)
-            }
+            val term = selectedTermLiveData.value
+            val type = selectedExamTypeLiveData.value
+            val filtered = data.filter { item -> matchTerm(item, term) && matchType(item.examType, type) }
             DataState(filtered, state.state)
         }
+
+    /** 学期/类型切换时重新套一次过滤（单源 map 不会因过滤条件变化而自动重算）。 */
+    fun refreshFilter() {
+        mergedExams.value = mergedExams.value
+    }
 
     /**
      * 方法区
      */
     fun startRefresh() {
         pageController.value = Trigger.actioning
-        rawExamLiveData.value = DataState(memoStore.load(), DataState.STATE.SUCCESS)
+        mergedExams.value = DataState(memoStore.load(), DataState.STATE.SUCCESS)
     }
 
     fun addMemo(item: ExamItem) {
-        rawExamLiveData.value = DataState(memoStore.add(item), DataState.STATE.SUCCESS)
+        mergedExams.value = DataState(memoStore.add(item) + (mergedExams.value?.data.orEmpty().filter { m -> m.memoId != item.memoId }), DataState.STATE.SUCCESS)
     }
 
     fun deleteMemo(memoId: String) {
-        rawExamLiveData.value = DataState(memoStore.delete(memoId), DataState.STATE.SUCCESS)
+        mergedExams.value = DataState(memoStore.delete(memoId), DataState.STATE.SUCCESS)
     }
 
     private fun matchTerm(item: ExamItem, term: TermItem?): Boolean {
