@@ -52,7 +52,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -337,9 +344,21 @@ private fun TodayPage(service: TimetableService?) {
             }
         }
         if (events.isNotEmpty()) {
+            val context = LocalContext.current
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp)) {
                 events.sortedBy { it.from.time }.forEach { event ->
-                    TodayEventRow(event)
+                    TodayEventRow(event) {
+                        if (event.subjectId.isNotBlank()) {
+                            context.startActivity(
+                                android.content.Intent()
+                                    .setClassName(context, "com.stupidtree.hitax.ui.subject.SubjectActivity")
+                                    .putExtra("subjectId", event.subjectId)
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } else {
+                            android.widget.Toast.makeText(context, "该日程没有课程详情", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             }
         }
@@ -365,7 +384,7 @@ private fun TodayPage(service: TimetableService?) {
 }
 
 @Composable
-private fun TodayEventRow(event: EventItem) {
+private fun TodayEventRow(event: EventItem, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 64.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -382,7 +401,9 @@ private fun TodayEventRow(event: EventItem) {
         androidx.compose.material3.Surface(
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+            modifier = Modifier.weight(1f).padding(vertical = 4.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .clickable(onClick = onClick),
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                 Text(event.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium)
@@ -503,13 +524,30 @@ private fun TimetablePage(service: TimetableService?) {
                 }
             }
         }
-        Spacer(Modifier.height(20.dp))
         val hourHeight = 61.dp
         val todayCalendar = java.util.Calendar.getInstance()
         if (todayCalendar.get(java.util.Calendar.HOUR_OF_DAY) < 5) {
             todayCalendar.add(java.util.Calendar.DATE, -1)
         }
         val todayIndex = (dayOfWeek(todayCalendar.timeInMillis) - 1).coerceIn(0, 6)
+        val gridScroll = rememberScrollState()
+        LaunchedEffect(week) { gridScroll.scrollTo(0) }
+        Column(Modifier.weight(1f).verticalScroll(gridScroll)) {
+            Spacer(Modifier.height(12.dp))
+            AnimatedContent(
+                targetState = week,
+                transitionSpec = {
+                    (slideInHorizontally { it / 5 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { -it / 5 } + fadeOut())
+                },
+                label = "timetable_week",
+            ) { animatedWeek ->
+                val animatedStart = (timetable?.startTime?.time ?: 0L) +
+                    (animatedWeek - 1).toLong() * 7L * 24 * 3600 * 1000
+                val animatedEvents by remember(service, animatedStart) {
+                    service?.getEventsDuring(animatedStart, animatedStart + 7L * 24 * 3600 * 1000)
+                        ?: androidx.lifecycle.MutableLiveData(emptyList<EventItem>())
+                }.observeAsState(emptyList())
         Row(Modifier.fillMaxWidth().height(hourHeight * 12).pointerInput(Unit) {
             var drag = 0f
             detectHorizontalDragGestures(
@@ -545,7 +583,7 @@ private fun TimetablePage(service: TimetableService?) {
                 Row(Modifier.fillMaxSize()) {
                     repeat(7) { dayIndex ->
                         Box(Modifier.weight(1f).fillMaxHeight()) {
-                            events.filter { dayOfWeek(it.from.time) == dayIndex + 1 }.forEach { item ->
+                            animatedEvents.filter { dayOfWeek(it.from.time) == dayIndex + 1 }.forEach { item ->
                                 val fromMinute = minuteOfDay(item.from.time)
                                 val toMinute = minuteOfDay(item.to.time)
                                 val top = ((fromMinute - 8 * 60).coerceAtLeast(0) / 60f) * hourHeight.value
@@ -571,6 +609,9 @@ private fun TimetablePage(service: TimetableService?) {
                     }
                 }
             }
+        }
+            }
+            Spacer(Modifier.height(96.dp))
         }
     }
 }
