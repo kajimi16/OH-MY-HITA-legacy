@@ -110,3 +110,10 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 - 首次请求 400：定位为 `encodeMedia = { "" }`，已改为真实 Base64。
 - 修复后请求返回 **HTTP 429**（限流/额度），等待冷却后重试仍是 429。
 - 因此只证明了 Key 生效、请求合法，未取得实际图片理解回复。
+
+
+## 媒体实际理解（2026-11-19）
+
+- 图片 `wp-test.png`：模型返回“纯蓝色背景图，无其他图案/文字/图形”。
+- 视频 `attach_test.mp4`：连续返回 HTTP 429；视频理解未验收。
+- 结论：图片链路通过；视频请求合法但被限流。
