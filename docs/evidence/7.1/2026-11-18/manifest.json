@@ -1,0 +1,51 @@
+{
+  "date": "2026-11-18",
+  "device": "emulator-5554",
+  "resolution": "1080x2400",
+  "density": 420,
+  "font_scale": 1.0,
+  "theme": "light",
+  "upstream": {
+    "package": "cn.limpu.hita",
+    "versionName": "3.1.2",
+    "versionCode": 2026103101
+  },
+  "ours": {
+    "package": "io.github.kajimi16.ohmyhita",
+    "versionName": "0.7.1-dev",
+    "versionCode": 1795005613
+  },
+  "note": "Exploratory content-only comparison. Upstream logged out hides 资讯 (5 tabs); our shell intentionally keeps 6 tabs, and the dock is excluded by crop. Not a formal acceptance baseline.",
+  "items": [
+    {
+      "page": "today",
+      "state": "logged-out / empty",
+      "upstream": "upstream/today__empty.png",
+      "ours": "ours/today__empty.png",
+      "diff": "diff/today__empty.png",
+      "upstream_sha256": "99240f6777fa480bd27b1220eeae5b03747b7b6007725f3502c63d6771eab90c",
+      "ours_sha256": "3195cb92e1b8e27b22227854ca4032894bacdd84fcd3d9c31c59c190e8e4f5c6",
+      "diff_sha256": "3c1bf5e6a62b23d14d175d06b76318251f456878164fcd105be1da2c322e23ca",
+      "crop_top_px": 130,
+      "crop_bottom_px": 310,
+      "tolerance": 10,
+      "content_ratio_percent": 5.358,
+      "dock_excluded": true
+    },
+    {
+      "page": "todo",
+      "state": "logged-out / empty",
+      "upstream": "upstream/todo__empty.png",
+      "ours": "ours/todo__empty.png",
+      "diff": "diff/todo__empty.png",
+      "upstream_sha256": "3dad9df59adea52b44175bdec2c3d4e2946dfe2bf29914782cb801e99d4c1d64",
+      "ours_sha256": "5cfd7203f4ac15f920aaf0269df27de35e0fa035c892695da21dd0731a58db1c",
+      "diff_sha256": "85df0c249847b29a04a09051eef63b405d0dff5721a099960d5be739e4eba41a",
+      "crop_top_px": 130,
+      "crop_bottom_px": 310,
+      "tolerance": 10,
+      "content_ratio_percent": 3.54,
+      "dock_excluded": true
+    }
+  ]
+}

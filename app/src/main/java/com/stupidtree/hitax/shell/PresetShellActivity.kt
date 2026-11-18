@@ -231,39 +231,91 @@ private fun TodayPage(service: TimetableService?) {
         Text(
             dateText,
             color = Color(0xFF111827),
-            fontSize = 26.sp,
+            fontSize = 24.sp,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(Modifier.height(38.dp))
+        Spacer(Modifier.height(39.dp))
         Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0C5C91)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 14.dp),
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                Modifier.fillMaxWidth().background(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        listOf(Color(0xFF1C5E9D), Color(0xFF0C5C91)),
+                    ),
+                ),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(
                         if (events.isEmpty()) "今日空闲" else "今日课程",
+                        color = Color.White,
                         fontSize = 24.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Black,
                         modifier = Modifier.weight(1f),
                     )
                     if (events.isEmpty()) {
-                        Text("享受当下！", color = Color(0xFF3390EC), fontSize = 14.sp)
+                        Text(
+                            "享受当下！",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
                 }
+                Box(
+                    Modifier.fillMaxWidth().height(110.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.size(110.dp).clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.16f))
+                            .padding(20.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(R.drawable.ic_timeline_head_free),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+                androidx.compose.material3.Icon(
+                    painter = painterResource(R.drawable.ic_baseline_arrow_drop_down_24),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.align(Alignment.End).padding(end = 16.dp).size(44.dp),
+                )
                 if (events.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    events.sortedBy { it.from.time }.forEach { event ->
-                        EventRow(event)
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+                        events.sortedBy { it.from.time }.forEach { event ->
+                            EventRow(event)
+                        }
                     }
                 }
             }
         }
         if (events.isEmpty()) {
-            Spacer(Modifier.height(190.dp))
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("今天暂无课程或日程安排", color = Color(0xFF808080), fontSize = 14.sp)
+            Spacer(Modifier.height(24.dp))
+            Box(
+                Modifier.fillMaxWidth().heightIn(min = 200.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    androidx.compose.material3.Icon(
+                        painter = painterResource(R.drawable.ic_timeline),
+                        contentDescription = null,
+                        tint = Color(0xFF3390EC).copy(alpha = 0.35f),
+                        modifier = Modifier.size(96.dp),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text("今天暂无课程或日程安排", color = Color(0xFF808080), fontSize = 16.sp)
+                }
             }
         }
     }
