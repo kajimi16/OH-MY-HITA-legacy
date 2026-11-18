@@ -10,6 +10,11 @@ def appVersionCodeValue = (project.findProperty("appVersionCode") ?: System.curr
 def appVersionNameValue = (project.findProperty("appVersionName") ?: "0.0.1") as String
 // 插件市场索引地址；留空时读应用私有目录（仅 debug 有内置演示）
 def pluginIndexUrl = (project.findProperty("pluginIndexUrl") ?: "") as String
+// 由 :api:generateApiAbi 生成；发布插件时把同一个哈希写进索引的 apiAbi。
+def apiAbiFile = rootProject.file("api/api-abi.txt")
+def apiAbiValue = apiAbiFile.exists()
+        ? (apiAbiFile.readLines().find { it.trim() && !it.startsWith("#") } ?: "")
+        : ""
 
 // 发布签名从 local.properties 读取（该文件已被 .gitignore 排除）；缺失时打未签名包。
 def keystoreProps = new Properties()
@@ -43,6 +48,7 @@ android {
         // 插件市场索引地址；为空时读 filesDir/market/index.json（本地联调）
         buildConfigField "String", "COMPOSE_RUNTIME_VERSION", "\"${compose_version}\""
         buildConfigField "String", "PLUGIN_INDEX_URL", "\"${pluginIndexUrl}\""
+        buildConfigField "String", "API_ABI", "\"${apiAbiValue}\""
     }
 //    viewBinding{
 //        enabled = true
@@ -210,13 +216,21 @@ tasks.register('testClasses') {
 }
 
 // 宿主不得直接依赖插件的仓库 / DAO / 数据库实现——只能通过 :api 的服务契约访问。
+// 同时检查插件模块自身的依赖 allowlist：禁止 :app 和插件间依赖。
 tasks.register('verifyPluginBoundary') {
-    // 只覆盖已迁入 :plugin-hita 的部分；EAS/课程资源等仓库仍属宿主，暂不在此列。
     def forbidden = [
             'com.stupidtree.hitax.data.repository.TimetableRepository',
             'com.stupidtree.hitax.data.repository.SubjectRepository',
             'com.stupidtree.hitax.data.repository.IcsImport',
             'com.stupidtree.hitax.data.source.dao.'
+    ]
+    def sharedModules = [':api', ':model', ':component', ':style', ':user', ':sync']
+    def pluginAllow = [
+            'plugin-hita'    : [':api', ':model', ':style', ':component', ':user', ':sync'],
+            'plugin-eas'     : [':api', ':model', ':component', ':style', ':user', ':sync'],
+            'plugin-resource': [':api', ':model', ':component', ':style'],
+            'plugin-user'    : [':api', ':model', ':user', ':component', ':style', ':sync'],
+            'theta'          : [':api', ':style', ':component', ':user'],
     ]
     doLast {
         def offenders = []
@@ -226,12 +240,86 @@ tasks.register('verifyPluginBoundary') {
                 if (text.contains(token)) offenders << "${f.path}: $token"
             }
         }
+
+        def moduleNames = rootProject.file('.').listFiles()
+                ?.findAll { it.isDirectory() && (it.name.startsWith('plugin-') || it.name == 'theta') }
+                ?.collect { it.name } ?: []
+        moduleNames.each { module ->
+            def build = rootProject.file("${module}/build.gradle")
+            if (!build.isFile()) return
+            def allowed = module.startsWith('plugin-ui-')
+                    ? [':api']
+                    : (pluginAllow[module] ?: sharedModules)
+            def matcher = build.text =~ /project\s*\(\s*(?:path\s*:\s*)?['"](:[A-Za-z0-9_-]+)['"]\s*\)/
+            matcher.each { match ->
+                def dep = match[1]
+                if (dep == ':app' || dep.startsWith(':plugin-') || !allowed.contains(dep)) {
+                    offenders << "${module}/build.gradle: unsupported dependency $dep"
+                }
+            }
+        }
+
         if (!offenders.isEmpty()) {
-            throw new GradleException("宿主越界引用插件实现：\n" + offenders.join("\n"))
+            throw new GradleException("插件依赖越界：\n" + offenders.join("\n"))
+        }
+    }
+}
+
+// 市场索引的基本契约校验：唯一 id、sha256、API 范围、preset 引用存在。
+tasks.register('verifyMarketIndex') {
+    group = 'verification'
+    def indexFile = rootProject.file('market/index.json')
+    def pluginApi = rootProject.file('api/src/main/java/com/stupidtree/hita/api/Plugin.kt')
+    doLast {
+        if (!indexFile.isFile()) throw new GradleException("market/index.json 不存在")
+        def hostApi = 0
+        def apiMatcher = pluginApi.text =~ /HITA_API_VERSION\s*=\s*(\d+)/
+        if (apiMatcher.find()) hostApi = apiMatcher.group(1).toInteger()
+        if (hostApi <= 0) throw new GradleException("无法从 Plugin.kt 解析 HITA_API_VERSION")
+
+        def json = new groovy.json.JsonSlurper().parse(indexFile)
+        def errors = []
+        def seen = [] as Set
+        def plugins = json.plugins ?: []
+        def uiPlugins = json.uiPlugins ?: []
+
+        (plugins + uiPlugins).each { plugin ->
+            if (!plugin.id) errors << "条目缺少 id"
+            if (plugin.id && !seen.add(plugin.id)) errors << "重复 id: ${plugin.id}"
+            if (!plugin.name) errors << "${plugin.id}: 缺少 name"
+            if (!(plugin.sha256 ==~ /[0-9a-fA-F]{64}/)) {
+                errors << "${plugin.id}: sha256 不是 64 位十六进制"
+            }
+            if (!plugin.url) errors << "${plugin.id}: 缺少 url"
+            def minApi = plugin.minHostApi
+            if (minApi != null && minApi > hostApi) {
+                errors << "${plugin.id}: minHostApi ${minApi} > host ${hostApi}"
+            }
+            def maxApi = plugin.maxHostApi
+            if (maxApi != null && minApi != null && maxApi < minApi) {
+                errors << "${plugin.id}: maxHostApi ${maxApi} < minHostApi ${minApi}"
+            }
+            if (plugin.apiVersion != null && plugin.apiVersion > hostApi) {
+                errors << "${plugin.id}: apiVersion ${plugin.apiVersion} > host ${hostApi}"
+            }
+        }
+
+        def known = seen as Set
+        (json.presets ?: []).each { preset ->
+            (preset.plugins ?: []).each { ref ->
+                if (!ref.id) errors << "preset ${preset.id}: 空引用"
+                else if (!known.contains(ref.id)) {
+                    errors << "preset ${preset.id}: 引用不存在的 ${ref.id}"
+                }
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            throw new GradleException("market/index.json 校验失败：\n" + errors.join("\n"))
         }
     }
 }
 
 tasks.matching { it.name == 'preBuild' }.configureEach {
-    dependsOn 'verifyPluginBoundary'
+    dependsOn 'verifyPluginBoundary', 'verifyMarketIndex'
 }

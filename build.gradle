@@ -36,6 +36,16 @@ tasks.register('clean', Delete) {
     delete rootProject.buildDir
 }
 
+// Root aliases so `./gradlew :verifyMarketIndex` / `:verifyPluginBoundary` work.
+tasks.register('verifyMarketIndex') {
+    group = 'verification'
+    dependsOn ':app:verifyMarketIndex'
+}
+tasks.register('verifyPluginBoundary') {
+    group = 'verification'
+    dependsOn ':app:verifyPluginBoundary'
+}
+
 // Fix for KAPT with JDK 16+
 allprojects {
     tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {

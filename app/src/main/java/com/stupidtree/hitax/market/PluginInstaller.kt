@@ -7,6 +7,8 @@ import com.stupidtree.hita.kernel.PluginArtifactMeta
 import com.stupidtree.hita.kernel.PluginDescriptor
 import com.stupidtree.hita.kernel.PluginHost
 import com.stupidtree.hita.kernel.PluginLoader
+import com.stupidtree.hitax.BuildConfig
+import com.stupidtree.hitax.plugin.PluginExemptions
 import java.io.File
 
 /**
@@ -50,6 +52,8 @@ class PluginInstaller(
                     File(dir, "opt"),
                     entry.artifactMeta(),
                     entry.descriptor(),
+                    BuildConfig.API_ABI.takeIf { it.isNotBlank() },
+                    entry.isExempt(),
                 )
             saveDisabled(disabledIds() - id)
         } else {
@@ -111,6 +115,8 @@ class PluginInstaller(
                     File(dir, "opt"),
                     entry.artifactMeta(),
                     entry.descriptor(),
+                    BuildConfig.API_ABI.takeIf { it.isNotBlank() },
+                    entry.isExempt(),
                 )
             if (!wasEnabled) host.uninstall(entry.id)
 
@@ -137,6 +143,8 @@ class PluginInstaller(
                             File(dir, "opt"),
                             oldEntry.artifactMeta(),
                             oldEntry.descriptor(),
+                            BuildConfig.API_ABI.takeIf { it.isNotBlank() },
+                            oldEntry.isExempt(),
                         )
                     }.onFailure { log("rollback failed: ${entry.id}", it) }
                 }
@@ -173,6 +181,8 @@ class PluginInstaller(
                         File(File(root, entry.id), "opt"),
                         entry.artifactMeta(),
                         entry.descriptor(),
+                        BuildConfig.API_ABI.takeIf { it.isNotBlank() },
+                        entry.isExempt(),
                     )
             }.onFailure { log("restore failed: ${entry.id}", it) }
         }
@@ -185,12 +195,20 @@ class PluginInstaller(
         maxHostApi = maxHostApi,
         apiAbi = apiAbi,
         minSdk = minSdk,
+        version = version,
     )
 
     private fun MarketPlugin.descriptor(): PluginDescriptor = PluginDescriptor(
         id = id,
         requires = requires,
         provides = provides,
+    )
+
+    private fun MarketPlugin.isExempt(): Boolean = PluginExemptions.isExempt(
+        context,
+        id,
+        version,
+        com.stupidtree.hita.api.HITA_API_VERSION,
     )
 
     private fun fetch(entry: MarketPlugin, indexBase: String?, target: File) {

@@ -15,6 +15,7 @@ data class PluginArtifactMeta(
     val maxHostApi: Int? = null,
     val apiAbi: String? = null,
     val minSdk: Int? = null,
+    val version: String? = null,
 )
 
 sealed class CompatibilityResult {
@@ -43,7 +44,9 @@ object PluginCompatibility {
         hostApi: Int = HITA_API_VERSION,
         hostAbi: String? = null,
         sdkInt: Int? = null,
+        exempt: Boolean = false,
     ): CompatibilityResult {
+        if (exempt) return CompatibilityResult.Compatible
         val reasons = buildList {
             val minApi = maxOf(meta.requiresApi, meta.minHostApi ?: 0)
             if (minApi > hostApi) {

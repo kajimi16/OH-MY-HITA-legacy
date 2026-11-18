@@ -8,6 +8,8 @@ import com.stupidtree.hita.api.HITA_API_VERSION
 import com.stupidtree.hita.kernel.CompatibilityResult
 import com.stupidtree.hita.kernel.PluginArtifactMeta
 import com.stupidtree.hita.kernel.PluginCompatibility
+import com.stupidtree.hitax.BuildConfig
+import com.stupidtree.hitax.plugin.PluginExemptions
 import dalvik.system.DexClassLoader
 import java.io.File
 import java.security.MessageDigest
@@ -147,7 +149,14 @@ class UiPluginManager(private val context: Context) {
                 minSdk = meta.minSdk,
             ),
             hostApi = HITA_API_VERSION,
+            hostAbi = BuildConfig.API_ABI.takeIf { it.isNotBlank() },
             sdkInt = android.os.Build.VERSION.SDK_INT,
+            exempt = PluginExemptions.isExempt(
+                context,
+                meta.id,
+                meta.version,
+                HITA_API_VERSION,
+            ),
         )
         if (compatibility is CompatibilityResult.Rejected) {
             error("插件不兼容：${compatibility.reasons.joinToString("; ")}")

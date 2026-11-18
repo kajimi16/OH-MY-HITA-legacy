@@ -16,16 +16,26 @@ class PluginCompatibilityTest {
         hostApi: Int = HITA_API_VERSION,
         hostAbi: String? = null,
         sdkInt: Int? = null,
+        exempt: Boolean = false,
     ): CompatibilityResult = PluginCompatibility.check(
         PluginArtifactMeta("p", requiresApi, minHostApi, maxHostApi, apiAbi, minSdk),
         hostApi = hostApi,
         hostAbi = hostAbi,
         sdkInt = sdkInt,
+        exempt = exempt,
     )
 
     @Test
     fun compatibleWhenAllBoundsMatch() {
         assertEquals(CompatibilityResult.Compatible, check())
+    }
+
+    @Test
+    fun exactExemptionBypassesNormalChecks() {
+        assertEquals(
+            CompatibilityResult.Compatible,
+            check(requiresApi = HITA_API_VERSION + 1, exempt = true),
+        )
     }
 
     @Test

@@ -158,8 +158,12 @@ interface ThemeController { fun setNightMode(night: Boolean) }
 
 ## 版本策略
 
-- `HITA_API_VERSION` 是契约的二进制版本；任何破坏性改动必须递增。
-- 内核装载时检查 `requiresApi <= HITA_API_VERSION`，不满足直接拒绝并记录原因。
+- `HITA_API_VERSION` 是契约的语义版本；任何破坏性改动必须递增。
+- `api/api-abi.txt` 由 `./gradlew :api:generateApiAbi` 从公开 ABI 生成；
+  插件发布时把哈希写入索引的 `apiAbi`，宿主通过 `BuildConfig.API_ABI` 比对。
+- `app/src/main/assets/plugin_exemptions.json` 是精确豁免表，键为 `id@version`，
+  值为允许的宿主版本列表；升级插件或宿主都不继承豁免。空表表示没有豁免。
+- 内核装载时检查 `requiresApi <= HITA_API_VERSION` 与 ABI；不满足直接拒绝并记录原因。
 - 当前版本 **8**（8：`provide` 不再静默覆盖同名服务；7：新增提醒、后台任务、小组件服务）。
 
 变更记录：

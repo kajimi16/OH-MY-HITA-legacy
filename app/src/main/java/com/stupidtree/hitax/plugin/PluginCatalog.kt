@@ -2,12 +2,14 @@ package com.stupidtree.hitax.plugin
 
 import android.app.Application
 import android.util.Log
+import com.stupidtree.hita.api.HITA_API_VERSION
 import com.stupidtree.hita.api.Plugin
 import com.stupidtree.hita.kernel.CompatibilityResult
 import com.stupidtree.hita.kernel.PluginCompatibility
 import com.stupidtree.hita.kernel.PluginFailurePhase
 import com.stupidtree.hita.kernel.PluginInstallation
 import com.stupidtree.hita.kernel.PluginRejectedException
+import com.stupidtree.hitax.BuildConfig
 import com.stupidtree.hitax.HApplication
 
 /**
@@ -36,7 +38,17 @@ object PluginCatalog {
             }
 
     fun instantiate(entry: PluginEntry, application: Application): Plugin? {
-        val result = PluginCompatibility.check(entry.artifactMeta())
+        val meta = entry.artifactMeta()
+        val result = PluginCompatibility.check(
+            meta,
+            hostAbi = BuildConfig.API_ABI.takeIf { it.isNotBlank() },
+            exempt = PluginExemptions.isExempt(
+                application,
+                meta.id,
+                meta.version,
+                HITA_API_VERSION,
+            ),
+        )
         if (result is CompatibilityResult.Rejected) {
             val error = PluginRejectedException(entry.id, result.reasons)
             runCatching {

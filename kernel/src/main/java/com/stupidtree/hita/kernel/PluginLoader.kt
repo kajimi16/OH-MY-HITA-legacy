@@ -32,9 +32,11 @@ class PluginLoader(
         optimizedDir: File,
         meta: PluginArtifactMeta? = null,
         descriptor: PluginDescriptor? = null,
+        hostAbi: String? = null,
+        exempt: Boolean = false,
     ): Plugin {
         if (meta != null) {
-            when (val result = PluginCompatibility.check(meta)) {
+            when (val result = PluginCompatibility.check(meta, hostAbi = hostAbi, exempt = exempt)) {
                 is CompatibilityResult.Rejected -> {
                     val error = PluginRejectedException(meta.id, result.reasons)
                     host.reject(meta.id, error, PluginFailurePhase.COMPATIBILITY)

@@ -310,6 +310,15 @@ class HApplication : Application() {
 
 
 
+    /** 供 debug 广播导出内核诊断；同时写 logcat 与 filesDir/diagnostics/plugins.json。 */
+    fun dumpPluginDiagnostics(): String {
+        val json = com.google.gson.Gson().toJson(pluginHost.diagnostics())
+        val dir = java.io.File(filesDir, "diagnostics").apply { mkdirs() }
+        java.io.File(dir, "plugins.json").writeText(json)
+        android.util.Log.i(TAG, "plugin diagnostics: $json")
+        return json
+    }
+
     companion object {
         private const val TAG = "PluginHost"
     }
