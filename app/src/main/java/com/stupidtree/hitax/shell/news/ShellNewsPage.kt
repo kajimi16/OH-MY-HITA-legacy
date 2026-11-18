@@ -7,6 +7,10 @@ import android.text.Html
 import android.webkit.CookieManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
@@ -80,9 +84,15 @@ internal fun ShellNewsPage() {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("博客") })
             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("校园通知") })
         }
-        when (tab) {
-            0 -> BlogTab()
-            else -> NoticeTab()
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            label = "news_tab",
+        ) { page ->
+            when (page) {
+                0 -> BlogTab()
+                else -> NoticeTab()
+            }
         }
     }
 }

@@ -191,14 +191,20 @@ private fun HitaAndroidShell(
     var selected by remember { mutableIntStateOf(1) }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
-            when (selected) {
-                0 -> HomeworkScreen(homeworkViewModel)
-                1 -> TodayPage(service)
-                2 -> TimetablePage(service)
-                3 -> AgentChatScreen(agentViewModel, remember(service) { runCatching { service?.getRecentTimetable()?.value?.id }.getOrNull() })
-                4 -> ShellNewsPage()
-                5 -> MorePage(service)
-                else -> Unit
+            AnimatedContent(
+                targetState = selected,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "shell_tab",
+            ) { tab ->
+                when (tab) {
+                    0 -> HomeworkScreen(homeworkViewModel)
+                    1 -> TodayPage(service)
+                    2 -> TimetablePage(service)
+                    3 -> AgentChatScreen(agentViewModel, remember(service) { runCatching { service?.getRecentTimetable()?.value?.id }.getOrNull() })
+                    4 -> ShellNewsPage()
+                    5 -> MorePage(service)
+                    else -> Unit
+                }
             }
         }
         Box(Modifier.fillMaxWidth().padding(bottom = 0.dp), contentAlignment = Alignment.BottomCenter) {
