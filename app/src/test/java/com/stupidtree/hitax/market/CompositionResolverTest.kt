@@ -192,6 +192,31 @@ class CompositionResolverTest {
     }
 
     @Test
+    fun userDisabledBaseEntryNeverGetsReEnabledByPreset() {
+        val plan = resolve(
+            base = setOf("timetable"),
+            userDisabled = mapOf(CompositionKind.BUILTIN to setOf("timetable")),
+        )
+
+        val entry = plan.entry("timetable", CompositionKind.BUILTIN)
+        assertFalse(entry.enabled)
+        assertEquals(CompositionSource.USER, entry.source)
+        assertFalse(plan.forPresetApplication().entry("timetable", CompositionKind.BUILTIN).enabled)
+    }
+
+    @Test
+    fun presetApplicationPlanExcludesBaseOnlyEntries() {
+        val plan = resolve(
+            base = setOf("timetable"),
+            next = preset("new", PresetPluginRef("ui", "ui")),
+            available = mapOf(CompositionKind.UI to setOf("ui")),
+        )
+
+        assertEquals(listOf("timetable", "ui"), plan.entries.map { it.id })
+        assertEquals(listOf("ui"), plan.forPresetApplication().entries.map { it.id })
+    }
+
+    @Test
     fun dumpListsSourcesAndMissingReasons() {
         val plan = resolve(
             base = setOf("timetable"),

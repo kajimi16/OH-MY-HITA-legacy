@@ -484,7 +484,19 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
         vm.reloadUi.observe(this) { reload ->
             if (reload) {
                 vm.consumeReloadUi()
-                recreateOnce()
+                val shell = com.stupidtree.hitax.market.PresetStateStore.activeShell(this)
+                if (!shell.isNullOrBlank()) {
+                    startActivity(
+                        Intent(this, com.stupidtree.hitax.shell.PresetShellActivity::class.java)
+                            .putExtra(
+                                com.stupidtree.hitax.shell.PresetShellActivity.EXTRA_SHELL_ID,
+                                shell,
+                            )
+                    )
+                    finish()
+                } else {
+                    recreateOnce()
+                }
             }
         }
     }
