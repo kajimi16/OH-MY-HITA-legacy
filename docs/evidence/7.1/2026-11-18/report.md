@@ -114,6 +114,6 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 
 ## 媒体实际理解（2026-11-19）
 
-- 图片 `wp-test.png`：模型返回“纯蓝色背景图，无其他图案/文字/图形”。
+- 图片 `wp-test.png`：模型返回“纯蓝色背景图，无其他图案/文字/图形”；截图 `docs/evidence/7.1/2026-11-19/ours/media_image_success.png`。
 - 视频 `attach_test.mp4`：连续返回 HTTP 429；视频理解未验收。
 - 结论：图片链路通过；视频请求合法但被限流。
