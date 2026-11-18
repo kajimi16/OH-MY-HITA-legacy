@@ -6,6 +6,9 @@ enum class CompositionKind { BUILTIN, DEX, UI }
 /** 最终值由哪一层写入；后者覆盖前者。 */
 enum class CompositionSource { BASE, PRESET, USER, SAFETY }
 
+/** 组合条目的稳定身份；id 只在同一种类内唯一。 */
+data class CompositionTarget(val kind: CompositionKind, val id: String)
+
 data class CompositionEntry(
     val id: String,
     val kind: CompositionKind,
@@ -91,7 +94,7 @@ object CompositionResolver {
         available: Map<CompositionKind, Set<String>>,
         installed: Map<CompositionKind, Set<String>>,
         userDisabled: Map<CompositionKind, Set<String>> = emptyMap(),
-        killSwitches: Set<String> = emptySet(),
+        killSwitches: Set<CompositionTarget> = emptySet(),
     ): CompositionPlan {
         val entries = LinkedHashMap<Pair<CompositionKind, String>, CompositionEntry>()
 
@@ -159,7 +162,7 @@ object CompositionResolver {
 
         val resolved = entries.values.map { entry ->
             when {
-                entry.id in killSwitches -> entry.copy(
+                CompositionTarget(entry.kind, entry.id) in killSwitches -> entry.copy(
                     enabled = false,
                     source = CompositionSource.SAFETY,
                 )
@@ -190,7 +193,17 @@ object CompositionResolver {
 data class CompositionState(
     val installed: Map<CompositionKind, Set<String>> = emptyMap(),
     val enabled: Map<CompositionKind, Set<String>> = emptyMap(),
-)
+) {
+    fun dump(): String = buildString {
+        appendLine("state:")
+        installed.forEach { (kind, ids) ->
+            ids.sorted().forEach { appendLine("  installed ${kind.name.lowercase()} $it") }
+        }
+        enabled.forEach { (kind, ids) ->
+            ids.sorted().forEach { appendLine("  enabled ${kind.name.lowercase()} $it") }
+        }
+    }.trimEnd()
+}
 
 sealed class CompositionAction {
     data class Install(
@@ -225,6 +238,14 @@ interface CompositionExecutor {
     fun enable(kind: CompositionKind, id: String): Result<Boolean>
 
     fun disable(kind: CompositionKind, id: String): Result<Boolean>
+
+    /** 回滚到本次对账前的安装/启用状态；用于必选步骤失败后的反事实恢复。 */
+    fun restore(
+        kind: CompositionKind,
+        id: String,
+        installed: Boolean,
+        enabled: Boolean,
+    ): Result<Boolean>
 }
 
 data class CompositionReport(
@@ -235,9 +256,18 @@ data class CompositionReport(
     val failures: List<String>,
     val optionalFailures: List<String>,
     val reloadNeeded: Boolean,
+    val rolledBack: Int = 0,
+    val rollbackFailures: List<String> = emptyList(),
 ) {
-    val allFailures: List<String> get() = failures + optionalFailures
+    val allFailures: List<String> get() = failures + optionalFailures + rollbackFailures
     val canActivate: Boolean get() = failures.isEmpty()
+
+    fun dump(): String = buildString {
+        appendLine("result:")
+        appendLine("  installed=$installed enabled=$enabled disabled=$disabled skipped=$skipped")
+        appendLine("  rolledBack=$rolledBack reloadNeeded=$reloadNeeded canActivate=$canActivate")
+        allFailures.forEach { appendLine("  failure=$it") }
+    }.trimEnd()
 }
 
 object CompositionReconciler {
@@ -292,21 +322,72 @@ object CompositionReconciler {
         state: CompositionState,
         executor: CompositionExecutor,
     ): CompositionReport {
+        val disabledRequired = plan.blockingRequiredDisabled()
+        if (disabledRequired.isNotEmpty()) {
+            return CompositionReport(
+                installed = 0,
+                enabled = 0,
+                disabled = 0,
+                skipped = plan.entries.size,
+                failures = disabledRequired.map { "${it.id}（必选插件被 ${it.source.name.lowercase()} 停用）" },
+                optionalFailures = emptyList(),
+                reloadNeeded = false,
+            )
+        }
+
         var installed = 0
         var enabled = 0
         var disabled = 0
+        var rolledBack = 0
         var reload = false
         val failures = mutableListOf<String>()
         val optionalFailures = mutableListOf<String>()
+        val rollbackFailures = mutableListOf<String>()
+        data class Completed(
+            val action: CompositionAction,
+            val installed: Boolean,
+            val enabled: Boolean,
+        )
+        val completed = mutableListOf<Completed>()
 
         fun record(required: Boolean, text: String) {
             if (required) failures += text else optionalFailures += text
         }
 
+        fun rollback() {
+            completed.asReversed().forEach { done ->
+                // 用户/安全层已经决定停用的条目，不在失败回滚里重新启用。
+                val source = plan.entries.firstOrNull {
+                    it.id == done.action.id() && it.kind == done.action.kind()
+                }?.source
+                if (done.action is CompositionAction.Disable &&
+                    (source == CompositionSource.USER || source == CompositionSource.SAFETY)
+                ) {
+                    return@forEach
+                }
+                val result = executor.restore(
+                    done.action.kind(),
+                    done.action.id(),
+                    done.installed,
+                    done.enabled,
+                )
+                if (result.isSuccess) {
+                    rolledBack++
+                    when (done.action) {
+                        is CompositionAction.Install -> installed = (installed - 1).coerceAtLeast(0)
+                        is CompositionAction.Enable -> enabled = (enabled - 1).coerceAtLeast(0)
+                        is CompositionAction.Disable -> disabled = (disabled - 1).coerceAtLeast(0)
+                        is CompositionAction.Blocked -> Unit
+                    }
+                } else {
+                    rollbackFailures += "${done.action.id()}：${result.exceptionOrNull()?.message ?: "回滚失败"}"
+                }
+            }
+        }
+
         val actions = actions(plan, state)
-        actions.forEach { action ->
-            // 必选步骤失败后不再继续改动组合，避免留下“新组合装一半、旧组合还在”的状态。
-            if (failures.isNotEmpty()) return@forEach
+        for (action in actions) {
+            if (failures.isNotEmpty()) break
             when (action) {
                 is CompositionAction.Blocked -> record(
                     action.required,
@@ -316,6 +397,11 @@ object CompositionReconciler {
                     .fold(
                         onSuccess = {
                             installed++
+                            completed += Completed(
+                                action,
+                                installed = action.id in state.installed[action.kind].orEmpty(),
+                                enabled = action.id in state.enabled[action.kind].orEmpty(),
+                            )
                             if (it) reload = true
                         },
                         onFailure = { record(action.required, "${action.id}：${it.message ?: "安装失败"}") },
@@ -324,21 +410,32 @@ object CompositionReconciler {
                     .fold(
                         onSuccess = {
                             enabled++
+                            completed += Completed(
+                                action,
+                                installed = action.id in state.installed[action.kind].orEmpty(),
+                                enabled = action.id in state.enabled[action.kind].orEmpty(),
+                            )
                             if (it) reload = true
                         },
                         onFailure = { record(action.required, "${action.id}：${it.message ?: "启用失败"}") },
                     )
-                is CompositionAction.Disable -> {
-                    if (failures.isNotEmpty()) return@forEach
-                    executor.disable(action.kind, action.id)
-                        .onSuccess {
-                            disabled++
-                            if (it) reload = true
-                        }
-                        .onFailure { optionalFailures += "${action.id}：${it.message ?: "停用失败"}" }
-                }
+                is CompositionAction.Disable -> executor.disable(action.kind, action.id)
+                    .onSuccess {
+                        disabled++
+                        completed += Completed(
+                            action,
+                            installed = action.id in state.installed[action.kind].orEmpty(),
+                            enabled = action.id in state.enabled[action.kind].orEmpty(),
+                        )
+                        if (it) reload = true
+                    }
+                    .onFailure {
+                        // 旧组合仍启用但 active preset 被改写，会形成错误事实；按失败处理并回滚。
+                        record(true, "${action.id}：${it.message ?: "停用失败"}")
+                    }
             }
         }
+        if (failures.isNotEmpty()) rollback()
 
         val actionableKeys = actions.mapNotNull { action ->
             when (action) {
@@ -358,7 +455,23 @@ object CompositionReconciler {
             failures = failures,
             optionalFailures = optionalFailures,
             reloadNeeded = reload,
+            rolledBack = rolledBack,
+            rollbackFailures = rollbackFailures,
         )
+    }
+
+    private fun CompositionAction.kind(): CompositionKind = when (this) {
+        is CompositionAction.Install -> kind
+        is CompositionAction.Enable -> kind
+        is CompositionAction.Disable -> kind
+        is CompositionAction.Blocked -> missing.kind
+    }
+
+    private fun CompositionAction.id(): String = when (this) {
+        is CompositionAction.Install -> id
+        is CompositionAction.Enable -> id
+        is CompositionAction.Disable -> id
+        is CompositionAction.Blocked -> missing.id
     }
 
     private fun CompositionMissingReason.label(): String = when (this) {

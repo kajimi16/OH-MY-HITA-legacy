@@ -9,6 +9,9 @@ import com.stupidtree.hita.kernel.CompatibilityResult
 import com.stupidtree.hita.kernel.PluginArtifactMeta
 import com.stupidtree.hita.kernel.PluginCompatibility
 import com.stupidtree.hitax.BuildConfig
+import com.stupidtree.hitax.market.CompositionKind
+import com.stupidtree.hitax.market.CompositionStore
+import com.stupidtree.hitax.market.CompositionTarget
 import com.stupidtree.hitax.plugin.PluginExemptions
 import dalvik.system.DexClassLoader
 import java.io.File
@@ -28,7 +31,7 @@ class UiPluginManager(private val context: Context) {
 
     fun installed(): List<InstalledUiPlugin> =
         UiPluginStore.list(context)
-            .filter { File(it.apkPath).isFile }
+            .filter { isUsable(it) }
             .map { it.copy(enabled = !UiPluginStore.isDisabled(context, it.id)) }
 
     data class InstalledMainTab(
@@ -37,8 +40,7 @@ class UiPluginManager(private val context: Context) {
     )
 
     /** 所有启用插件贡献的主界面 tab，按 order 排序。 */
-    fun mainTabs(): List<InstalledMainTab> = installed()
-        .filter { it.enabled }
+    fun mainTabs(): List<InstalledMainTab> = enabled()
         .flatMap { plugin ->
             val tabs = plugin.mainTabs ?: if (
                 com.stupidtree.hita.api.RuntimeUiService.CAP_MAIN_TAB in plugin.capabilities
@@ -71,7 +73,12 @@ class UiPluginManager(private val context: Context) {
     }
 
     /** 按 capability 找一个可用的已安装插件；找不到返回 null。 */
-    fun enabled(): List<InstalledUiPlugin> = installed().filter { it.enabled }
+    fun enabled(): List<InstalledUiPlugin> {
+        val safety = CompositionStore.killSwitches(context)
+        return installed().filter {
+            it.enabled && CompositionTarget(CompositionKind.UI, it.id) !in safety
+        }
+    }
 
     /**
      * 路由前预检：文件必须存在且哈希与安装记录一致。
@@ -79,13 +86,8 @@ class UiPluginManager(private val context: Context) {
      * 损坏的插件直接停用并返回 null，让调用方回退内置页面，而不是等
      * [com.stupidtree.hitax.uiplugin.PluginUiActivity] 打开后才失败。
      */
-    fun resolveForCapability(capability: String): InstalledUiPlugin? {
-        val candidate = enabled().firstOrNull { capability in it.capabilities } ?: return null
-        if (isUsable(candidate)) return candidate
-        Log.w(TAG, "plugin ${candidate.id} is corrupt, disable and fall back")
-        setEnabled(candidate.id, false)
-        return null
-    }
+    fun resolveForCapability(capability: String): InstalledUiPlugin? =
+        enabled().firstOrNull { capability in it.capabilities }
 
     fun isUsable(record: InstalledUiPlugin): Boolean = runCatching {
         val apk = File(record.apkPath)
@@ -95,6 +97,9 @@ class UiPluginManager(private val context: Context) {
     /** 启用/停用已安装插件；停用后不再参与能力路由，但文件保留。 */
     fun setEnabled(id: String, enabled: Boolean): Boolean {
         UiPluginStore.find(context, id) ?: return false
+        if (enabled && CompositionTarget(CompositionKind.UI, id) in CompositionStore.killSwitches(context)) {
+            return false
+        }
         UiPluginStore.setEnabled(context, id, enabled)
         return true
     }
@@ -139,6 +144,9 @@ class UiPluginManager(private val context: Context) {
             }
         }
         val meta = readMetadata(file)
+        require(!CompositionStore.isKillSwitched(context, CompositionKind.UI, meta.id)) {
+            "插件已被宿主安全开关停用"
+        }
         val compatibility = PluginCompatibility.check(
             meta = PluginArtifactMeta(
                 id = meta.id,
@@ -177,40 +185,52 @@ class UiPluginManager(private val context: Context) {
             "插件需要 api ${plugin.requiresApi}，当前宿主 $HITA_API_VERSION"
         }
 
-        // 替换旧 APK 并清掉旧优化产物，避免 DexClassLoader 复用旧 dex
-        File(dir, "plugin.apk").delete()
-        File(dir, "oat").deleteRecursively()
+        // 替换前保留旧 APK；后续任一步失败都恢复旧文件与旧记录，避免“新版本没装成、旧版本也没了”。
         val apk = File(dir, "plugin.apk")
-        check(staging.renameTo(apk)) { "替换插件文件失败" }
-        // Android 14 起，动态加载的代码文件必须是只读的
-        apk.setReadOnly()
-        require(sha256(apk) == actual) { "落盘校验失败" }
+        val backup = File(dir, "plugin-old.apk")
+        val oldRecord = UiPluginStore.find(context, meta.id)
+        backup.delete()
+        if (apk.isFile) check(apk.renameTo(backup)) { "无法备份旧插件" }
+        try {
+            File(dir, "oat").deleteRecursively()
+            check(staging.renameTo(apk)) { "替换插件文件失败" }
+            // Android 14 起，动态加载的代码文件必须是只读的
+            apk.setReadOnly()
+            require(sha256(apk) == actual) { "落盘校验失败" }
 
-        val installed = InstalledUiPlugin(
-            id = meta.id,
-            name = plugin.displayName,
-            version = meta.version,
-            entryClass = meta.entryClass,
-            apkPath = apk.absolutePath,
-            sha256 = actual,
-            capabilities = meta.capabilities,
-            mainTabs = meta.mainTabs.ifEmpty {
-                if (com.stupidtree.hita.api.RuntimeUiService.CAP_MAIN_TAB in meta.capabilities) {
-                    listOf(
-                        com.stupidtree.hita.api.MainTabSpec(
-                            id = meta.id,
-                            title = plugin.displayName,
+            val installed = InstalledUiPlugin(
+                id = meta.id,
+                name = plugin.displayName,
+                version = meta.version,
+                entryClass = meta.entryClass,
+                apkPath = apk.absolutePath,
+                sha256 = actual,
+                capabilities = meta.capabilities,
+                mainTabs = meta.mainTabs.ifEmpty {
+                    if (com.stupidtree.hita.api.RuntimeUiService.CAP_MAIN_TAB in meta.capabilities) {
+                        listOf(
+                            com.stupidtree.hita.api.MainTabSpec(
+                                id = meta.id,
+                                title = plugin.displayName,
+                            )
                         )
-                    )
-                } else {
-                    emptyList()
-                }
-            },
-        )
-        UiPluginStore.put(context, installed)
-        // 重装同一个 id 时旧记录可能仍在 disabled 集合里；安装完成应视为启用。
-        UiPluginStore.setEnabled(context, meta.id, true)
-        return installed
+                    } else {
+                        emptyList()
+                    }
+                },
+            )
+            UiPluginStore.put(context, installed)
+            // 重装同一个 id 时旧记录可能仍在 disabled 集合里；安装完成应视为启用。
+            UiPluginStore.setEnabled(context, meta.id, true)
+            backup.delete()
+            return installed
+        } catch (t: Throwable) {
+            staging.delete()
+            apk.delete()
+            if (backup.isFile) backup.renameTo(apk)
+            if (oldRecord != null) UiPluginStore.put(context, oldRecord) else UiPluginStore.remove(context, meta.id)
+            throw t
+        }
     }
 
     fun uninstall(id: String) {

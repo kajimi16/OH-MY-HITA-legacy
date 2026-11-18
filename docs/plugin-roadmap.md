@@ -426,6 +426,22 @@ fun interface Decision<T> {
   4. Agent 工具由 schema 驱动；插件贡献只在 `:api` 的最小工具 spec 与 app 侧适配器落地后开启，并受白名单约束。
 - 不引入 YAML、`!!js`、通用事件总线或第二套工具注册表；已有 `PluginScope`、`provideGlobal`、sha256/白名单、UI capability 回退保持不变。
 
+## 6.1 当前实现进度（2026-11）
+
+- **M0 拒绝与诊断**：完成。加载前兼容 gate、ABI 指纹、精确豁免、内核诊断快照、debug dump 均已在生产路径。
+- **M1 依赖与激活**：完成。descriptor 的 `requires` 驱动 waiting/波次激活，provider 冲突可见；`origin` 标记 builtin/dex，工具白名单不再按 id 猜测来源。
+- **M2 组合对账**：部分完成。resolver/reconciler/dump、kind-scoped 安全开关、必选失败回滚已经落地；
+  `CompositionMaterializer` 与“启动时按 active preset 重放”仍未实现，下载仍发生在 reconcile executor 内。
+- **M3a 宿主工具契约**：部分完成。schema 驱动的 catalog/validate/timeout/truncate、output schema 元数据、
+  retrySafe（含一次安全重试）、presentCall/presentResult、资源卡片回传与渲染、生产 guard/脱敏已接入；
+  `ReActToolInput.actionInput` 仍是字符串，尚未迁移成参数对象。不再保留第二套工具注册表。
+- **M3b 插件工具**：完成。`PluginToolSpec` / `PluginToolHandler` 由内核记录 origin、校验 spec、随卸载撤销；
+  `:api` 不引用 `:app` 工具类型。
+- **M4 决策 hook**：完成。两个试点已接线；hook 异常回退原值并进入诊断，提醒 payload 重新过长度/优先级收敛，
+  同步 hook 禁止重定向 key/ids。
+
+剩余高风险项：组合 materializer 与启动重放、UI 安装的完整原子回滚（已补旧 APK 备份/恢复但仍非跨进程事务）。
+
 ## 7. 参考
 
 - dsh 架构：<https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.zh.md>

@@ -19,7 +19,7 @@ class CompositionResolverTest {
         available: Map<CompositionKind, Set<String>> = emptyMap(),
         installed: Map<CompositionKind, Set<String>> = emptyMap(),
         userDisabled: Map<CompositionKind, Set<String>> = emptyMap(),
-        killSwitches: Set<String> = emptySet(),
+        killSwitches: Set<CompositionTarget> = emptySet(),
     ) = CompositionResolver.resolve(
         baseIds = base,
         next = next,
@@ -99,11 +99,51 @@ class CompositionResolverTest {
             available = mapOf(CompositionKind.UI to setOf("shared-ui")),
             installed = mapOf(CompositionKind.UI to setOf("shared-ui")),
             userDisabled = mapOf(CompositionKind.UI to setOf("shared-ui")),
-            killSwitches = setOf("shared-ui"),
+            killSwitches = setOf(CompositionTarget(CompositionKind.UI, "shared-ui")),
         )
 
         assertEquals(CompositionSource.SAFETY, plan.entry("shared-ui", CompositionKind.UI).source)
         assertFalse(plan.entry("shared-ui", CompositionKind.UI).enabled)
+    }
+
+    @Test
+    fun repeatedResolveIsDeterministic() {
+        val next = preset(
+            "new",
+            PresetPluginRef("b-ui", "ui"),
+            PresetPluginRef("a-dex", "dex"),
+        )
+        val first = resolve(
+            base = setOf("timetable", "eas"),
+            next = next,
+            available = mapOf(
+                CompositionKind.UI to setOf("b-ui"),
+                CompositionKind.DEX to setOf("a-dex"),
+            ),
+        )
+        val second = resolve(
+            base = setOf("eas", "timetable"),
+            next = next,
+            available = mapOf(
+                CompositionKind.UI to setOf("b-ui"),
+                CompositionKind.DEX to setOf("a-dex"),
+            ),
+        )
+        assertEquals(first, second)
+    }
+
+    @Test
+    fun killSwitchIsKindScoped() {
+        val plan = resolve(
+            base = setOf("shared"),
+            next = preset("new", PresetPluginRef("shared", "ui")),
+            available = mapOf(CompositionKind.UI to setOf("shared")),
+            killSwitches = setOf(CompositionTarget(CompositionKind.UI, "shared")),
+        )
+
+        assertTrue(plan.entry("shared", CompositionKind.BUILTIN).enabled)
+        assertFalse(plan.entry("shared", CompositionKind.UI).enabled)
+        assertEquals(CompositionSource.SAFETY, plan.entry("shared", CompositionKind.UI).source)
     }
 
     @Test
@@ -205,7 +245,7 @@ class CompositionResolverTest {
             next = preset("new", PresetPluginRef("ui", "ui", required = true)),
             available = mapOf(CompositionKind.UI to setOf("ui")),
             installed = mapOf(CompositionKind.UI to setOf("ui")),
-            killSwitches = setOf("ui"),
+            killSwitches = setOf(CompositionTarget(CompositionKind.UI, "ui")),
         )
         assertEquals(CompositionSource.SAFETY, safePlan.blockingRequiredDisabled().single().source)
     }

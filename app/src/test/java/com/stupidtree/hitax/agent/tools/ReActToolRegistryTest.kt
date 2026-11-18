@@ -58,6 +58,53 @@ class ReActToolRegistryTest {
     fun nonJsonLegacyInputIsLeftToTheTool() {
         assertTrue(validate("search_teacher", "张老师").isEmpty())
         assertTrue(validate("get_timetable", "").isEmpty())
+        assertTrue(validate("get_timetable", "今天").isEmpty())
+    }
+
+    @Test
+    fun nonJsonInputIsRejectedForMultiFieldTools() {
+        assertEquals(
+            listOf("动作输入必须是 JSON 对象"),
+            validate("add_activity", "明天开会"),
+        )
+    }
+
+    @Test
+    fun blankRequiredStringIsRejected() {
+        assertEquals(
+            listOf("参数 name 不能为空"),
+            validate("search_teacher", """{"name":""}"""),
+        )
+    }
+
+    @Test
+    fun catalogEnumPlaceholderIsValidJsonAndAliasesAreVisible() {
+        val catalog = registry.catalog()
+        assertTrue(catalog.contains("\"review_type\":\"lecturer\""))
+        assertFalse(catalog.contains("lecturer|course"))
+        assertTrue(catalog.contains("review_type 可选值：lecturer,course"))
+        assertTrue(catalog.contains("teacher_name→name"))
+    }
+
+    @Test
+    fun failingPostProcessorFailsClosed() = runBlocking {
+        val registry = ReActToolRegistry()
+        registry.register(
+            ToolSpec(
+                name = "x",
+                description = "x",
+                tool = SuspendingReActTool { "secret" },
+            ),
+        )
+        registry.postProcess { _, _ -> error("redaction failed") }
+
+        val result = registry.runPipeline(
+            registry.spec("x")!!,
+            ToolCall("x", ""),
+        ) { "secret" }
+
+        assertTrue(result.error)
+        assertEquals("工具结果后处理失败", result.text)
     }
 
     @Test
@@ -107,6 +154,32 @@ class ReActToolRegistryTest {
         assertTrue(result.truncated)
         assertTrue(result.text.endsWith("…[truncated]"))
         assertTrue(result.text.startsWith("abcdefghij"))
+    }
+
+    @Test
+    fun retrySafeToolIsRetriedOnce() = runBlocking {
+        val registry = ReActToolRegistry()
+        registry.register(
+            ToolSpec(
+                name = "flaky",
+                description = "flaky",
+                retrySafe = true,
+                tool = SuspendingReActTool { "ok" },
+            ),
+        )
+        var calls = 0
+
+        val result = registry.runPipeline(
+            registry.spec("flaky")!!,
+            ToolCall("flaky", ""),
+        ) {
+            calls++
+            if (calls == 1) error("first failure") else "ok"
+        }
+
+        assertEquals(2, calls)
+        assertFalse(result.error)
+        assertEquals("ok", result.text)
     }
 
     @Test

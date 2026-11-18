@@ -2,6 +2,8 @@ package com.stupidtree.hita.kernel
 
 import com.stupidtree.hita.api.Plugin
 
+enum class PluginOrigin { BUILTIN, DEX, UNKNOWN }
+
 /**
  * 插件在激活前可读的依赖声明。
  *
@@ -12,6 +14,7 @@ data class PluginDescriptor(
     val id: String,
     val requires: Set<String> = emptySet(),
     val provides: Set<String> = emptySet(),
+    val origin: PluginOrigin = PluginOrigin.UNKNOWN,
 )
 
 /** 一次带声明的安装请求。 */

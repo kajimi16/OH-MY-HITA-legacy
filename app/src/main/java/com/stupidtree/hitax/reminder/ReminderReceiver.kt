@@ -44,11 +44,14 @@ class ReminderReceiver : BroadcastReceiver() {
         )
 
         val original = ReminderNotification(reminder.title, reminder.text)
-        val payload = runCatching {
-            (context.applicationContext as? HApplication)?.pluginHost
-                ?.runHook(HookKeys.REMINDER_NOTIFY, original)
-                ?: original
-        }.getOrElse { original }
+        val payload = ReminderRules.normalizeNotification(
+            runCatching {
+                (context.applicationContext as? HApplication)?.pluginHost
+                    ?.runHook(HookKeys.REMINDER_NOTIFY, original)
+                    ?: original
+            }.getOrNull() ?: original,
+            original,
+        )
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_nav_today)

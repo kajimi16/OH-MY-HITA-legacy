@@ -179,6 +179,24 @@ interface ThemeController { fun setNightMode(night: Boolean) }
 | 7 | 新增提醒、后台任务、桌面小组件服务（加法） |
 | 8 | `provide` 改为显式冲突：宿主全局优先，插件间先提供者胜出 |
 
+## 组合安全开关与诊断
+
+`CompositionStore` 以 `(kind, id)` 保存宿主安全开关；启动装配、UI 路由和整合包对账都会读取它，
+同一个 id 的 UI 与内置条目互不影响。调试包可以导出组合快照：
+
+```bash
+adb shell am broadcast -a com.stupidtree.hitax.DEBUG_DUMP_COMPOSITION
+```
+
+`applyPreset` 会把最近一次的 desired/actual 快照写到 `filesDir/diagnostics/composition.txt`；
+`DEBUG_DUMP_PLUGINS` 同时把内核诊断与组合快照写入 `diagnostics.json`。
+调试包可以设置/解除安全开关：
+
+```bash
+adb shell am broadcast -a com.stupidtree.hitax.DEBUG_SET_KILL_SWITCH \
+  --es kind ui --es id com.example.ui --ez enabled true
+```
+
 ## 运行时逻辑插件（T1）
 
 除构建期插件外，还支持从 dex 动态装载**逻辑插件**：
@@ -274,6 +292,12 @@ ctx.hooks.register(HookKeys.SYNC_PULL_RECORD) { record, next ->
 }
 ```
 
+- 监听器抛异常、返回 null 或重复调用 `next()` 时，宿主回退到本 hook 的原始输入，
+  并把失败写入 `PluginDiagnostics.hookFailures`（hook 名、插件 id、监听器序号）。
+- 提醒 hook 的输出会再次经过 `ReminderRules`：标题/正文裁剪到长度上限，
+  空白字段回退原值，优先级收敛到 Android `PRIORITY_MIN..MAX`。
+- 同步 hook 只允许改写 `data`；改写 `key`/`ids` 会被宿主忽略。
+
 当前只开放两个真实流程：
 
 - `HookKeys.SYNC_PULL_RECORD`：`SyncRecord(key, ids, data)`，在调用 `SyncCodec.save` 之前。
@@ -294,13 +318,21 @@ ctx.tools.register(
         parameters = listOf(
             PluginToolParam("query", required = true, description = "查询词"),
         ),
+        outputSchemaJson = """{"type":"object","properties":{"result":{"type":"string"}}}""",
+        retrySafe = true,
+        allowRawString = true,
     ),
 ) { inputJson -> "结果：$inputJson" }
 ```
 
-- `parameters` 只支持 string / integer / number / boolean；宿主负责生成工具目录与参数校验。
-- `maxObservationChars` / `timeoutMs` 由宿主做上限裁剪。
+- `parameters` 支持 string / integer / number / boolean，以及旧别名 `int` / `long` / `float` / `double` / `bool`。
+- `allowRawString` 只适用于“单个必填 string 参数”的工具：模型可以直接写原文，宿主把它包装成该参数再校验。
+- `outputSchemaJson` 只用于目录展示，不替代执行时校验；`retrySafe` 表示失败重试不会产生重复副作用。
+- `maxObservationChars` / `timeoutMs` 由宿主做上限裁剪；非法 spec（空名、未知类型、非正数上限）会让插件安装失败并进入诊断。
 - 同名工具不能覆盖宿主内置工具；插件工具随插件卸载撤销。
+- 宿主只信任 `PluginOrigin.BUILTIN` 或 `verified_plugins.json` 中插件的工具，
+  内置 id 的第三方 dex 插件不能借 id 冒充。
+- 工具产生的 `AgentResourceCard` 会随结果进入聊天记录并在回答下方渲染。
 - 工具与宿主同进程，安装前仍需按市场信任模型审查。
 
 原生课表外观服务见 [课表壁纸协议](timetable-appearance.md)。

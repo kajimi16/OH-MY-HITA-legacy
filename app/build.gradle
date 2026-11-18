@@ -283,33 +283,54 @@ tasks.register('verifyMarketIndex') {
         def plugins = json.plugins ?: []
         def uiPlugins = json.uiPlugins ?: []
 
-        (plugins + uiPlugins).each { plugin ->
-            if (!plugin.id) errors << "条目缺少 id"
-            if (plugin.id && !seen.add(plugin.id)) errors << "重复 id: ${plugin.id}"
-            if (!plugin.name) errors << "${plugin.id}: 缺少 name"
+        def validateArtifact = { String kind, plugin ->
+            if (!plugin.id) errors << "${kind}: 条目缺少 id"
+            def key = "${kind}:${plugin.id}".toString()
+            if (plugin.id && !seen.add(key)) errors << "重复 ${kind} id: ${plugin.id}"
+            if (!plugin.name) errors << "${kind}:${plugin.id}: 缺少 name"
             if (!(plugin.sha256 ==~ /[0-9a-fA-F]{64}/)) {
-                errors << "${plugin.id}: sha256 不是 64 位十六进制"
+                errors << "${kind}:${plugin.id}: sha256 不是 64 位十六进制"
             }
-            if (!plugin.url) errors << "${plugin.id}: 缺少 url"
+            if (!plugin.url) errors << "${kind}:${plugin.id}: 缺少 url"
             def minApi = plugin.minHostApi
             if (minApi != null && minApi > hostApi) {
-                errors << "${plugin.id}: minHostApi ${minApi} > host ${hostApi}"
+                errors << "${kind}:${plugin.id}: minHostApi ${minApi} > host ${hostApi}"
             }
             def maxApi = plugin.maxHostApi
             if (maxApi != null && minApi != null && maxApi < minApi) {
-                errors << "${plugin.id}: maxHostApi ${maxApi} < minHostApi ${minApi}"
+                errors << "${kind}:${plugin.id}: maxHostApi ${maxApi} < minHostApi ${minApi}"
             }
             if (plugin.apiVersion != null && plugin.apiVersion > hostApi) {
-                errors << "${plugin.id}: apiVersion ${plugin.apiVersion} > host ${hostApi}"
+                errors << "${kind}:${plugin.id}: apiVersion ${plugin.apiVersion} > host ${hostApi}"
             }
+        }
+        plugins.each { validateArtifact('dex', it) }
+        uiPlugins.each { validateArtifact('ui', it) }
+
+        def builtinFile = rootProject.file('app/src/main/assets/plugins.json')
+        if (!builtinFile.isFile()) throw new GradleException("app/src/main/assets/plugins.json 不存在")
+        def builtinJson = new groovy.json.JsonSlurper().parse(builtinFile)
+        (builtinJson.plugins ?: []).each { entry ->
+            if (!entry.id) {
+                errors << "builtin: 条目缺少 id"
+            } else if (!seen.add("builtin:${entry.id}".toString())) {
+                errors << "重复 builtin id: ${entry.id}"
+            }
+            if (!entry.class) errors << "builtin:${entry.id}: 缺少 class"
         }
 
         def known = seen as Set
         (json.presets ?: []).each { preset ->
             (preset.plugins ?: []).each { ref ->
-                if (!ref.id) errors << "preset ${preset.id}: 空引用"
-                else if (!known.contains(ref.id)) {
-                    errors << "preset ${preset.id}: 引用不存在的 ${ref.id}"
+                if (!ref.id) {
+                    errors << "preset ${preset.id}: 空引用"
+                    return
+                }
+                def kind = (ref.kind ?: 'ui').toString().toLowerCase()
+                if (!(kind in ['ui', 'dex', 'builtin'])) {
+                    errors << "preset ${preset.id}: 未知 kind ${ref.kind}"
+                } else if (!known.contains("${kind}:${ref.id}".toString())) {
+                    errors << "preset ${preset.id}: 引用不存在的 ${kind}:${ref.id}"
                 }
             }
         }

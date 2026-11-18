@@ -12,6 +12,7 @@ import com.stupidtree.hitax.agent.data.ChatSessionRepository
 import com.stupidtree.hitax.agent.llm.ChatMessage
 import com.stupidtree.hitax.agent.llm.LlmChatResult
 import com.stupidtree.hitax.agent.llm.ShellChatService
+import com.stupidtree.hitax.agent.model.AgentResourceCard
 import com.stupidtree.hitax.agent.model.ChatMessageRecord
 import com.stupidtree.hitax.agent.model.ChatSession
 import kotlinx.coroutines.Job
@@ -23,6 +24,7 @@ data class AgentMessage(
     val role: String,
     val text: String,
     val timestampMs: Long = System.currentTimeMillis(),
+    val cards: List<AgentResourceCard> = emptyList(),
 )
 
 class AgentChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -53,7 +55,12 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
         val records = repository.restore(sessionId).await()
         messages.clear()
         records.filter { it.role != ChatMessageRecord.Role.TRACE }.forEach {
-            messages += AgentMessage(it.role.name.lowercase(), it.text, it.timestampMs)
+            messages += AgentMessage(
+                it.role.name.lowercase(),
+                it.text,
+                it.timestampMs,
+                it.resourceCards,
+            )
         }
     }
 
@@ -72,8 +79,8 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
                     .map { ChatMessage(role = it.role, content = it.text) }
                 when (val result = ShellChatService.chat(history, getApplication(), timetableId)) {
                     is LlmChatResult.Success -> {
-                        append(sessionId, ChatMessageRecord.Role.ASSISTANT, result.text)
-                        messages += AgentMessage("assistant", result.text)
+                        append(sessionId, ChatMessageRecord.Role.ASSISTANT, result.text, result.cards)
+                        messages += AgentMessage("assistant", result.text, cards = result.cards)
                     }
                     is LlmChatResult.Error -> {
                         val error = "出错了：${result.error}"
@@ -87,8 +94,16 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private suspend fun append(sessionId: String, role: ChatMessageRecord.Role, text: String) {
-        repository.append(sessionId, ChatMessageRecord(role = role, text = text)).await()
+    private suspend fun append(
+        sessionId: String,
+        role: ChatMessageRecord.Role,
+        text: String,
+        cards: List<AgentResourceCard> = emptyList(),
+    ) {
+        repository.append(
+            sessionId,
+            ChatMessageRecord(role = role, text = text, resourceCards = cards),
+        ).await()
     }
 
     /** 会话列表切换；发送中不切换，避免回复写错会话。 */

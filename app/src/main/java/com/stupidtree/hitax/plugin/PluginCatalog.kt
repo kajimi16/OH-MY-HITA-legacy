@@ -10,6 +10,9 @@ import com.stupidtree.hita.kernel.PluginFailurePhase
 import com.stupidtree.hita.kernel.PluginInstallation
 import com.stupidtree.hita.kernel.PluginRejectedException
 import com.stupidtree.hitax.BuildConfig
+import com.stupidtree.hitax.market.CompositionKind
+import com.stupidtree.hitax.market.CompositionStore
+import com.stupidtree.hitax.market.CompositionTarget
 import com.stupidtree.hitax.HApplication
 
 /**
@@ -30,12 +33,15 @@ object PluginCatalog {
         entries(application).firstOrNull { it.id == pluginId }
 
     /** 启动装配用：过滤掉用户已卸载的插件，并把 requires/provides 一并交给内核。 */
-    fun installations(application: Application): List<PluginInstallation> =
-        entries(application)
+    fun installations(application: Application): List<PluginInstallation> {
+        val safety = CompositionStore.killSwitches(application)
+        return entries(application)
             .filterNot { PluginPrefs.isDisabled(application, it.id) }
+            .filterNot { CompositionTarget(CompositionKind.BUILTIN, it.id) in safety }
             .mapNotNull { entry ->
                 instantiate(entry, application)?.let { PluginInstallation(it, entry.descriptor()) }
             }
+    }
 
     fun instantiate(entry: PluginEntry, application: Application): Plugin? {
         val meta = entry.artifactMeta()

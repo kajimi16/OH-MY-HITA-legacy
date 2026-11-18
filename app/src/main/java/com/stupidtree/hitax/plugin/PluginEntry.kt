@@ -3,6 +3,7 @@ package com.stupidtree.hitax.plugin
 import com.google.gson.JsonParser
 import com.stupidtree.hita.kernel.PluginArtifactMeta
 import com.stupidtree.hita.kernel.PluginDescriptor
+import com.stupidtree.hita.kernel.PluginOrigin
 
 /**
  * 构建期插件清单的一条记录。
@@ -39,6 +40,7 @@ data class PluginEntry(
         id = id,
         requires = requires,
         provides = provides,
+        origin = PluginOrigin.BUILTIN,
     )
 }
 

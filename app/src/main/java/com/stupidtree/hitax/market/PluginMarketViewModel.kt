@@ -341,10 +341,23 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 message.postValue("整合包没有插件清单，已取消")
                 return@execute
             }
+            val invalidKinds = preset.refs()
+                .map { it.normalizedKind() }
+                .filterNot { it in setOf("ui", "dex", "builtin") }
+                .distinct()
+            if (invalidKinds.isNotEmpty()) {
+                message.postValue("整合包含未知插件类型：${invalidKinds.joinToString()}")
+                return@execute
+            }
             // 在单线程执行器内读取，连续点击时第二次能看到第一次刚写入的 active preset。
-            val previous = PresetStateStore.activeId(ctx())
-                ?.let { id -> presets.value?.firstOrNull { it.id == id } }
-                ?.takeIf { it.id != preset.id }
+            val activeId = PresetStateStore.activeId(ctx())
+            val previous = activeId?.let { id ->
+                if (id == preset.id) {
+                    CompositionStore.savedPreset(ctx())?.takeIf { it.id == id }
+                } else {
+                    presets.value?.firstOrNull { it.id == id }
+                }
+            }
             val ui = availableUiPlugins.value.orEmpty().associateBy { it.id }
             val dex = items.value.orEmpty().associateBy { it.entry.id }
             val installedUi = uiPluginManager.installed().associateBy { it.id }
@@ -380,6 +393,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                         .toSet(),
                 ),
                 userDisabled = userDisabled,
+                killSwitches = CompositionStore.killSwitches(ctx()),
             )
             val requiredMissing = plan.blockingRequiredMissing()
             if (requiredMissing.isNotEmpty()) {
@@ -422,6 +436,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                         .toSet(),
                 ),
             )
+            CompositionStore.record(ctx(), plan, state)
             val compositionExecutor = object : CompositionExecutor {
                 override fun install(kind: CompositionKind, id: String): Result<Boolean> {
                     return when (kind) {
@@ -470,6 +485,42 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                     CompositionKind.BUILTIN -> builtin.setEnabled(id, true).map { true }
                 }
 
+                override fun restore(
+                    kind: CompositionKind,
+                    id: String,
+                    installed: Boolean,
+                    enabled: Boolean,
+                ): Result<Boolean> = when (kind) {
+                    CompositionKind.UI -> runCatching {
+                        if (!installed) {
+                            uiPluginManager.uninstall(id)
+                            true
+                        } else {
+                            uiPluginManager.setEnabled(id, enabled)
+                        }
+                    }
+                    CompositionKind.DEX -> runCatching {
+                        if (!installed) {
+                            installer.uninstall(id)
+                            true
+                        } else if (installer.isEnabled(id) == enabled) {
+                            false
+                        } else {
+                            installer.setEnabled(id, enabled)
+                            true
+                        }
+                    }
+                    CompositionKind.BUILTIN -> runCatching {
+                        if (!installed) {
+                            builtin.uninstall(id, purge = false).getOrThrow()
+                            true
+                        } else {
+                            builtin.setEnabled(id, enabled).getOrThrow()
+                            true
+                        }
+                    }
+                }
+
                 override fun disable(kind: CompositionKind, id: String): Result<Boolean> = when (kind) {
                     CompositionKind.UI ->
                         if (uiPluginManager.setEnabled(id, false)) {
@@ -492,6 +543,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 state = state,
                 executor = compositionExecutor,
             )
+            CompositionStore.recordResult(ctx(), plan, state, report)
             val installed = report.installed
             val enabled = report.enabled
             val skipped = report.skipped
@@ -501,6 +553,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
             val optionalFailures = report.optionalFailures
             if (report.canActivate) {
                 PresetStateStore.setActive(ctx(), preset.id, preset.shell)
+                CompositionStore.savePreset(ctx(), preset)
                 activePresetId.postValue(preset.id)
             }
 
@@ -509,10 +562,11 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 if (enabled > 0) append("，启用 $enabled")
                 append("，跳过 $skipped")
                 if (disabledOld > 0) append("，停用旧组合 $disabledOld")
-                val allFailures = failures + optionalFailures
+                if (report.rolledBack > 0) append("，回滚 ${report.rolledBack}")
+                val allFailures = failures + optionalFailures + report.rollbackFailures
                 if (allFailures.isNotEmpty()) append("，失败 ${allFailures.size}")
             }
-            val allFailures = failures + optionalFailures
+            val allFailures = report.allFailures
             message.postValue(if (allFailures.isEmpty()) summary else summary + "；" + allFailures.joinToString("；"))
             if (reloadNeeded) reloadUi.postValue(true)
             refresh()

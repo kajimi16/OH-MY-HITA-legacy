@@ -1,5 +1,6 @@
 package com.stupidtree.hitax.market
 
+import com.stupidtree.hita.kernel.PluginLoader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -12,9 +13,9 @@ class PluginInstallerStateTest {
     @get:Rule
     val tmp = TemporaryFolder()
 
-    private fun record(id: String) = MarketPlugin(
+    private fun record(id: String, sha256: String = "x") = MarketPlugin(
         id = id, name = id, version = "1", apiVersion = 2,
-        url = "x.dex", sha256 = "x", entryClass = "X",
+        url = "x.dex", sha256 = sha256, entryClass = "X",
     )
 
     @Test
@@ -34,12 +35,28 @@ class PluginInstallerStateTest {
     }
 
     @Test
+    fun corruptInstalledDexIsHidden() {
+        val root = tmp.newFolder("runtime-plugins")
+        File(root, "corrupt").mkdirs()
+        val dex = File(root, "corrupt/plugin.dex").apply { writeText("dex") }
+        val sha = PluginLoader.sha256(dex)
+        dex.writeText("tampered")
+
+        val visible = PluginInstaller.filterInstalled(listOf(record("corrupt", sha)), root)
+
+        assertTrue(visible.isEmpty())
+    }
+
+    @Test
     fun installedRecordsWithoutDexAreHidden() {
         val root = tmp.newFolder("runtime-plugins")
         File(root, "present").mkdirs()
-        File(root, "present/plugin.dex").writeText("dex")
+        val dex = File(root, "present/plugin.dex").apply { writeText("dex") }
 
-        val visible = PluginInstaller.filterInstalled(listOf(record("present"), record("gone")), root)
+        val visible = PluginInstaller.filterInstalled(
+            listOf(record("present", PluginLoader.sha256(dex)), record("gone")),
+            root,
+        )
 
         assertEquals(listOf("present"), visible.map { it.id })
     }

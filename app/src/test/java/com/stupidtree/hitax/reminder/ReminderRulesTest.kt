@@ -1,5 +1,6 @@
 package com.stupidtree.hitax.reminder
 
+import com.stupidtree.hita.api.ReminderNotification
 import com.stupidtree.hita.api.ReminderSpec
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -28,6 +29,28 @@ class ReminderRulesTest {
         assertEquals("ownerId 不能为空", ReminderRules.validate(spec(ownerId = " "), 0))
         assertEquals("id 不能为空", ReminderRules.validate(spec(id = ""), 0))
         assertEquals("标题不能为空", ReminderRules.validate(spec(title = ""), 0))
+    }
+
+    @Test fun notificationRewriteIsClampedAndFallsBackWhenBlank() {
+        val fallback = ReminderNotification("原题", "原文")
+        val rewritten = ReminderRules.normalizeNotification(
+            ReminderNotification("x".repeat(200), " ", 99),
+            fallback,
+        )
+
+        assertEquals(ReminderRules.MAX_TITLE, rewritten.title.length)
+        assertEquals("原文", rewritten.text)
+        assertEquals(2, rewritten.priority)
+    }
+
+    @Test fun notificationSentinelPriorityIsPreserved() {
+        val fallback = ReminderNotification("原题", "原文")
+        val rewritten = ReminderRules.normalizeNotification(
+            ReminderNotification("题", "文"),
+            fallback,
+        )
+
+        assertEquals(Int.MIN_VALUE, rewritten.priority)
     }
 
     @Test fun lengthLimitsEnforced() {
