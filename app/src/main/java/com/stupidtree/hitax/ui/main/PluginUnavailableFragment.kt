@@ -26,8 +26,10 @@ class PluginUnavailableFragment : Fragment() {
     ): View {
         val context = requireContext()
         val pluginId = arguments?.getString(ARG_PLUGIN_ID).orEmpty()
+        val presetTitle = arguments?.getString(ARG_TITLE)?.takeIf { it.isNotBlank() }
         val name = (context.applicationContext as? com.stupidtree.hitax.HApplication)
             ?.let { PluginCatalog.entry(it, pluginId)?.displayName }
+            ?: presetTitle
             ?: pluginId
 
         val root = LinearLayout(context).apply {
@@ -63,10 +65,14 @@ class PluginUnavailableFragment : Fragment() {
 
     companion object {
         private const val ARG_PLUGIN_ID = "pluginId"
+        private const val ARG_TITLE = "title"
 
-        fun newInstance(pluginId: String): PluginUnavailableFragment =
+        fun newInstance(pluginId: String, title: String? = null): PluginUnavailableFragment =
             PluginUnavailableFragment().apply {
-                arguments = Bundle().apply { putString(ARG_PLUGIN_ID, pluginId) }
+                arguments = Bundle().apply {
+                    putString(ARG_PLUGIN_ID, pluginId)
+                    putString(ARG_TITLE, title)
+                }
             }
     }
 }
