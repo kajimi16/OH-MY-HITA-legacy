@@ -159,11 +159,11 @@ class PresetShellActivity : AppCompatActivity() {
 
 @Composable
 private fun shellSecondary(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFC2C8D2) else shellSecondary()
+    if (isSystemInDarkTheme()) Color(0xFFC2C8D2) else Color(0xFF6B7280)
 
 @Composable
 private fun shellTertiary(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFAEB6C2) else shellTertiary()
+    if (isSystemInDarkTheme()) Color(0xFFAEB6C2) else Color(0xFF9CA3AF)
 
 private data class ShellTab(val title: String, val iconRes: Int)
 
@@ -800,7 +800,7 @@ private fun MoreRow(
 ) {
     Row(
         Modifier.then(
-            if (rowHeight != null) Modifier.height(rowHeight) else Modifier
+            if (rowHeight != null) Modifier.heightIn(min = rowHeight) else Modifier
         ).fillMaxWidth().clickable(onClick = onClick)
             .padding(start = 20.dp, end = 18.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
