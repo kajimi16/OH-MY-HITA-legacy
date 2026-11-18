@@ -31,6 +31,7 @@ interface Plugin {
 | `service(key)` | 取服务；未注册返回 `null` |
 | `provide(key, impl)` | 注册服务；宿主全局优先，插件间先提供者胜出，后来者被拒绝并记录冲突 |
 | `filesDir()` | 该插件私有目录 |
+| `hooks` | 同步决策拦截；注册随插件卸载撤销 |
 | `nav` | 导航贡献点（`NavEntry`） |
 | `searchTabs` | 搜索结果页 tab 贡献点（`SearchTab`） |
 | `sync` | 云同步数据表贡献点（`SyncCodec`） |
@@ -250,5 +251,29 @@ class HelloPlugin : Plugin {
 }
 ```
 
+
+## Hook（决策拦截）
+
+Hook 是同步 waterfall：监听器按注册顺序执行，拿到当前值和一个 `next`。
+调用 `next(value)` 继续下游；直接返回则短路。注册返回的句柄随插件卸载自动撤销。
+
+```kotlin
+ctx.hooks.register(HookKeys.REMINDER_NOTIFY) { value, next ->
+    next(value.copy(text = value.text + "\n来自插件的补充说明"))
+}
+
+ctx.hooks.register(HookKeys.SYNC_PULL_RECORD) { record, next ->
+    // 示例：只改写某个同步表的 data，不改 key/ids。
+    if (record.key == "timetable") next(record.copy(data = record.data))
+    else next(record)
+}
+```
+
+当前只开放两个真实流程：
+
+- `HookKeys.SYNC_PULL_RECORD`：`SyncRecord(key, ids, data)`，在调用 `SyncCodec.save` 之前。
+- `HookKeys.REMINDER_NOTIFY`：`ReminderNotification(title, text, priority)`，在构建通知之前。
+
+新增 hook 必须同时有第二个真实消费者；不要把它当通用事件总线。
 
 原生课表外观服务见 [课表壁纸协议](timetable-appearance.md)。

@@ -28,6 +28,9 @@ interface PluginContext {
      */
     fun filesDir(): File
 
+    /** 同步决策 hook；注册随插件卸载撤销。 */
+    val hooks: PluginHooks
+
     /** 导航贡献点。 */
     val nav: NavRegistry
 

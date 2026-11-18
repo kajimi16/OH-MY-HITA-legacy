@@ -264,7 +264,11 @@ class HApplication : Application() {
 
             @WorkerThread
             override fun saveData(key: String, ids: List<String>, data: List<String>) {
-                pluginHost.sync.get(key)?.save(ids, data)
+                val record = pluginHost.runHook(
+                    com.stupidtree.hita.api.HookKeys.SYNC_PULL_RECORD,
+                    com.stupidtree.hita.api.SyncRecord(key, ids, data),
+                )
+                pluginHost.sync.get(record.key)?.save(record.ids, record.data)
             }
 
             @WorkerThread
