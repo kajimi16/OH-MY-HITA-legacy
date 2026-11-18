@@ -642,14 +642,16 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 NavigationFragment()
             },
         )
-        if (com.stupidtree.hitax.market.PresetStateStore.activeId(this) != "hita-l-1.5.3") {
-            result += Page(
-                R.id.navigation_plugin,
-                getString(R.string.title_plugin),
-                R.drawable.ic_nav_plugin,
-            ) {
-                com.stupidtree.hitax.market.FragmentPluginMarket()
-            }
+        if (com.stupidtree.hitax.market.PresetStateStore.activeId(this) == "hita-l-1.5.3") {
+            // HITA-L 1.5.3 固定三页；SmoothBottomBar 菜单也是静态三项，不能追加插件页。
+            return result
+        }
+        result += Page(
+            R.id.navigation_plugin,
+            getString(R.string.title_plugin),
+            R.drawable.ic_nav_plugin,
+        ) {
+            com.stupidtree.hitax.market.FragmentPluginMarket()
         }
         host.tabs.entries()
             .filterNot { it.id in baseTabIds }
