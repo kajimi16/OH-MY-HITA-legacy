@@ -55,7 +55,11 @@ private data class BlogItem(val title: String, val url: String, val date: String
 internal fun ShellNewsPage() {
     var tab by remember { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = tab) {
+        TabRow(
+            selectedTabIndex = tab,
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("资讯") })
             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("通知") })
         }
@@ -97,16 +101,18 @@ private fun BlogTab() {
             articles.isEmpty() -> EmptyMessage("暂无文章") { reload++ }
             else -> LazyColumn(
                 Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(articles, key = { it.url }) { article ->
                     Card(
                         Modifier.fillMaxWidth().clickable { openUrl(context, article.url) },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
                     ) {
                         Column(Modifier.padding(14.dp)) {
-                            Text(article.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                            Text(article.title, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                             Spacer(Modifier.height(4.dp))
                             Text(article.date, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         }
@@ -162,13 +168,15 @@ private fun NoticeTab() {
             notices.isEmpty() -> EmptyMessage("暂无通知") { reload++ }
             else -> LazyColumn(
                 Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(notices, key = { it.id }) { notice ->
                     Card(
                         Modifier.fillMaxWidth().clickable { openUrl(context, notice.url) },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                     ) {
                         Column(Modifier.padding(14.dp)) {
                             Text(notice.title, fontWeight = FontWeight.Medium, fontSize = 15.sp)
