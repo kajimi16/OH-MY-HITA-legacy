@@ -70,6 +70,8 @@ tasks.register('generateApiAbi') {
         javapCandidates << new File(System.getProperty('java.home'), 'bin/javap')
         def envJavaHome = System.getenv('JAVA_HOME')
         if (envJavaHome) javapCandidates << new File(envJavaHome, 'bin/javap')
+        def studioJbr = System.getenv('ANDROID_STUDIO_JBR')
+        if (studioJbr) javapCandidates << new File(studioJbr, 'bin/javap')
         def userJdks = new File(System.getProperty('user.home'), '.jdks')
         if (userJdks.isDirectory()) {
             userJdks.listFiles()?.each { jdk -> javapCandidates << new File(jdk, 'bin/javap') }
