@@ -150,7 +150,13 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
                 }
                 val answer = response.body()?.choices?.firstOrNull()?.message?.content
                 if (!response.isSuccessful || answer.isNullOrBlank()) {
-                    val message = "出错了：多模态模型 HTTP ${response.code()}"
+                    val detail = when (response.code()) {
+                        429 -> "多模态模型限流，请稍后再试"
+                        401, 403 -> "智谱 API Key 无效或无多模态权限"
+                        400 -> "多模态请求被拒绝"
+                        else -> "多模态模型 HTTP ${response.code()}"
+                    }
+                    val message = "出错了：$detail"
                     append(sessionId, ChatMessageRecord.Role.ASSISTANT, message)
                     messages += AgentMessage("assistant", message)
                 } else {
