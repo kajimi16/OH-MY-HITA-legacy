@@ -84,3 +84,11 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 - 资讯页白底问题已修复。
 - 切回浅色后资讯页与改动前截图 0.000% 差异。
 - 未做上游深色逐页像素比例。
+
+
+## 深色/字体验证修正（2026-11-19）
+
+- 深色截图必须用宿主 `PresetShellActivity`；此前一批截图实际是上游 App，已废弃。
+- 修复 `shellSecondary/shellTertiary` 自递归崩溃后，宿主 dark More/Today/News 实际可读。
+- 字体 0.85/1.3 六页冒烟；1.3 下 More 行高改为 `heightIn(min=...)` 后不再重叠。
+- 修复提交：`60b6aa7`。
