@@ -56,7 +56,9 @@ class BuiltinPluginManager(private val application: Application) {
         PluginPurge.cancel(application, pluginId)
         PluginPrefs.setDisabled(application, pluginId, false)
         host.install(plugin, entry.descriptor())
-        check(host.isInstalled(pluginId)) { "插件安装失败：$pluginId" }
+        check(host.isInstalled(pluginId) || host.isWaiting(pluginId)) {
+            "插件安装失败：$pluginId"
+        }
         PluginComponents.setEnabled(application, pluginId, true)
     }
 }
