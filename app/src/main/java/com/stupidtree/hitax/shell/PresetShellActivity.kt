@@ -625,18 +625,19 @@ private fun MorePage(service: TimetableService?) {
         }
         Spacer(Modifier.height(26.dp))
         MoreGroup("教务功能") {
-            MoreRow("考试", icon = Icons.Default.CalendarToday) { open("com.stupidtree.hitax.ui.eas.exam.ExamActivity") }
-            MoreRow("成绩管理", icon = Icons.Default.Assessment) {
+            Spacer(Modifier.height(4.dp))
+            MoreRow("考试", icon = Icons.Default.CalendarToday, rowHeight = 62.dp) { open("com.stupidtree.hitax.ui.eas.exam.ExamActivity") }
+            MoreRow("成绩管理", icon = Icons.Default.Assessment, rowHeight = 42.dp) {
                 open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
             }
-            MoreRow("个人成绩明细", "成绩状态 · 分项得分 · 权重折算", Icons.Default.Assessment) {
+            MoreRow("个人成绩明细", "成绩状态 · 分项得分 · 权重折算", Icons.Default.Assessment, rowHeight = 70.dp) {
                 open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
             }
-            MoreRow("空教室", icon = Icons.Default.MeetingRoom) { open("com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomActivity") }
-            MoreRow("培养方案", "完成度 · 学分类别 · 培养课组", Icons.Default.School) {
+            MoreRow("空教室", icon = Icons.Default.MeetingRoom, rowHeight = 48.dp) { open("com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomActivity") }
+            MoreRow("培养方案", "完成度 · 学分类别 · 培养课组", Icons.Default.School, rowHeight = 56.dp) {
                 openPlugin("com.stupidtree.hita.ui.training")
             }
-            MoreRow("深圳课程浏览", "教务选课池 · 全校课表（需 Web 登录）", Icons.Default.Search) {
+            MoreRow("深圳课程浏览", "教务选课池 · 全校课表（需 Web 登录）", Icons.Default.Search, rowHeight = 67.dp) {
                 openPlugin("com.stupidtree.hita.ui.community")
             }
         }
@@ -701,18 +702,21 @@ private fun MoreRow(
     title: String,
     subtitle: String? = null,
     icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.ChevronRight,
+    rowHeight: androidx.compose.ui.unit.Dp? = null,
     onClick: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+        Modifier.then(
+            if (rowHeight != null) Modifier.height(rowHeight) else Modifier
+        ).fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(40.dp).background(Color(0xFFE8F0FE), CircleShape),
+            Modifier.size(34.dp).background(Color(0xFFE8F0FE), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, null, tint = Color(0xFF3390EC), modifier = Modifier.size(21.dp))
+            Icon(icon, null, tint = Color(0xFF3390EC), modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
