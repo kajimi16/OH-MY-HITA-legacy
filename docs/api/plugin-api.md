@@ -32,6 +32,7 @@ interface Plugin {
 | `provide(key, impl)` | 注册服务；宿主全局优先，插件间先提供者胜出，后来者被拒绝并记录冲突 |
 | `filesDir()` | 该插件私有目录 |
 | `hooks` | 同步决策拦截；注册随插件卸载撤销 |
+| `tools` | 面向模型的工具贡献；注册随插件卸载撤销 |
 | `nav` | 导航贡献点（`NavEntry`） |
 | `searchTabs` | 搜索结果页 tab 贡献点（`SearchTab`） |
 | `sync` | 云同步数据表贡献点（`SyncCodec`） |
@@ -275,5 +276,27 @@ ctx.hooks.register(HookKeys.SYNC_PULL_RECORD) { record, next ->
 - `HookKeys.REMINDER_NOTIFY`：`ReminderNotification(title, text, priority)`，在构建通知之前。
 
 新增 hook 必须同时有第二个真实消费者；不要把它当通用事件总线。
+
+## 插件工具
+
+插件通过纯 DTO 贡献面向模型的工具；`:api` 不引用 `:app` 的 `ToolSpec`，
+宿主在 `ShellChatService` 里适配到内部注册表：
+
+```kotlin
+ctx.tools.register(
+    PluginToolSpec(
+        name = "my_lookup",
+        description = "查询插件自己的数据",
+        parameters = listOf(
+            PluginToolParam("query", required = true, description = "查询词"),
+        ),
+    ),
+) { inputJson -> "结果：$inputJson" }
+```
+
+- `parameters` 只支持 string / integer / number / boolean；宿主负责生成工具目录与参数校验。
+- `maxObservationChars` / `timeoutMs` 由宿主做上限裁剪。
+- 同名工具不能覆盖宿主内置工具；插件工具随插件卸载撤销。
+- 工具与宿主同进程，安装前仍需按市场信任模型审查。
 
 原生课表外观服务见 [课表壁纸协议](timetable-appearance.md)。

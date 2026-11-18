@@ -8,6 +8,9 @@ import com.stupidtree.hita.api.NavRegistry
 import com.stupidtree.hita.api.Plugin
 import com.stupidtree.hita.api.PluginContext
 import com.stupidtree.hita.api.PluginHooks
+import com.stupidtree.hita.api.PluginToolHandler
+import com.stupidtree.hita.api.PluginToolRegistry
+import com.stupidtree.hita.api.PluginToolSpec
 import com.stupidtree.hita.api.SearchTab
 import com.stupidtree.hita.api.SearchTabRegistry
 import com.stupidtree.hita.api.TabContribution
@@ -53,6 +56,14 @@ class PluginHost(
     private val availableServices = LinkedHashSet<String>()
     private val hookListeners = LinkedHashMap<String, MutableList<Decision<*>>>()
     private val hookLock = Any()
+    private val pluginToolBindings = LinkedHashMap<String, PluginToolBinding>()
+    private val toolLock = Any()
+
+    data class PluginToolBinding(
+        val pluginId: String,
+        val spec: PluginToolSpec,
+        val handler: PluginToolHandler,
+    )
 
     private data class PendingInstall(
         val plugin: Plugin,
@@ -265,6 +276,35 @@ class PluginHost(
         services[key.name] as? T
             ?: throw IllegalStateException("service not provided: ${key.name}")
 
+    private fun registerPluginTool(
+        pluginId: String,
+        spec: PluginToolSpec,
+        handler: PluginToolHandler,
+    ): AutoCloseable {
+        val key = spec.name.trim().lowercase()
+        val binding = PluginToolBinding(pluginId, spec, handler)
+        synchronized(toolLock) {
+            val existing = pluginToolBindings[key]
+            if (existing != null && existing.pluginId != pluginId) {
+                logger("tool name conflict: $key kept by ${existing.pluginId}, rejected $pluginId", null)
+                return AutoCloseable {}
+            }
+            pluginToolBindings[key] = binding
+        }
+        return AutoCloseable {
+            synchronized(toolLock) {
+                if (pluginToolBindings[key]?.handler === handler) {
+                    pluginToolBindings.remove(key)
+                }
+            }
+        }
+    }
+
+    /** 宿主读取当前已安装插件贡献的工具；按名称稳定排序。 */
+    fun pluginTools(): List<PluginToolBinding> = synchronized(toolLock) {
+        pluginToolBindings.values.toList()
+    }.sortedBy { it.spec.name }
+
     private fun <T> registerHook(key: HookKey<T>, listener: Decision<T>): AutoCloseable {
         synchronized(hookLock) {
             val listeners = hookListeners.getOrPut(key.name) { mutableListOf() }
@@ -395,6 +435,15 @@ class PluginHost(
 
             override fun <T> run(key: HookKey<T>, value: T): T =
                 this@PluginHost.runHook(key, value)
+        }
+
+        override val tools: PluginToolRegistry = object : PluginToolRegistry {
+            override fun register(spec: PluginToolSpec, handler: PluginToolHandler): AutoCloseable {
+                if (revoked) return AutoCloseable {}
+                val handle = this@PluginHost.registerPluginTool(pluginId, spec, handler)
+                undoStack += { handle.close() }
+                return handle
+            }
         }
 
         override val nav: NavRegistry = object : NavRegistry {
