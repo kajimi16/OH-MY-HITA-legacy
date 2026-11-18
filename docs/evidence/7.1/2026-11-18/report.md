@@ -38,3 +38,24 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 - Repeat with a logged-in upstream (6 tabs) for a full-screen comparison.
 - Compare the dock as its own region.
 - Continue with 时间表, 助手, 资讯, 更多.
+
+## 2026-11-18 登录态更新（补充）
+
+上游已通过 API 登录（API 登录不走 MFA；Web 登录才走短信/OTP）。最新内容区差异：
+
+| 页面 | 差异 | 结论 |
+|---|---:|---|
+| 待办 | 0.792% | 通过 |
+| 今日 | 1.733% | 通过（单个已结束课程） |
+| 助手 | 0.934% | 通过（空会话） |
+| 资讯 | 11.49% | 未通过 |
+| 更多 | 10.61% | 未通过（登录态不同） |
+| 时间表 | 13.53% | 未通过（fixture 周次/课程不同） |
+
+本轮未提交上游截图：包含姓名/学号/手机号等个人信息。上面的旧 manifest/截图仍是登录前探索基线，不能替代登录态证据包；资讯/更多/时间表截图与 header/dock 分区比例待补。
+
+## 仍未完成
+
+- 待办多条目/混合完成、今日无课/多课/跨节、时间表周切换、助手长会话/资源卡片、资讯空态/失败态、更多登录态、深色/字体缩放的对比。
+- header/dock 独立 ≤1% 阈值；`visual_diff.py` 分区输出。
+- HITA-L 三页回归、M5、0.7.1 发布候选。
