@@ -66,6 +66,13 @@ data class CompositionPlan(
             copy(entries = entries.filter { it.source != CompositionSource.BASE })
         }
 
+    /** 本次对账因“切出旧组合”而自动停用的条目；不属于用户手动禁用。 */
+    fun automaticDisabledTargets(): Set<CompositionTarget> =
+        entries
+            .filter { !it.enabled && it.source == CompositionSource.PRESET }
+            .map { CompositionTarget(it.kind, it.id) }
+            .toSet()
+
     fun dump(): String = buildString {
         appendLine("entries:")
         entries.forEach {

@@ -1,44 +1,42 @@
 package com.stupidtree.hitax.market
 
 import android.content.Context
-import com.google.gson.Gson
 
 /**
  * 当前生效整合包声明的主界面布局（底栏 tab 列表）。
  *
- * 预设通过 `tabs` 字段描述复刻目标的主界面结构（如 HITA_Android 3.1.2 的 6 个 tab），
- * 启用预设时写入这里；宿主装配主界面时只读这里。没有布局时退回原有的
- * “4 个基页 + 插件 tab 追加”行为，保证非复刻型预设不受影响。
+ * 新数据统一写入 [PresetStateStore]，与 active preset / shell 同一个 SharedPreferences
+ * 提交，避免冷启动读到“active 已换、tabs 未换”的半状态。旧版本的
+ * `preset_layout` 文件仍会在首次读取时迁移。
  */
 object PresetLayoutStore {
-    private const val PREFS = "preset_layout"
-    private const val KEY_PRESET = "preset_id"
-    private const val KEY_TABS = "tabs_json"
-
-    private val gson = Gson()
+    private const val LEGACY_PREFS = "preset_layout"
+    private const val LEGACY_PRESET = "preset_id"
+    private const val LEGACY_TABS = "tabs_json"
 
     fun save(context: Context, presetId: String, tabs: List<PresetTab>?) {
-        val editor = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-        if (tabs.isNullOrEmpty()) {
-            editor.remove(KEY_TABS)
-        } else {
-            editor.putString(KEY_TABS, gson.toJson(tabs))
-        }
-        editor.putString(KEY_PRESET, presetId).apply()
+        PresetStateStore.saveLayout(context, presetId, tabs)
     }
-
-    fun presetId(context: Context): String? =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_PRESET, null)
 
     fun tabs(context: Context): List<PresetTab> {
-        val json = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_TABS, null) ?: return emptyList()
-        return runCatching {
-            gson.fromJson(json, Array<PresetTab>::class.java)?.toList().orEmpty()
-        }.getOrDefault(emptyList()).filter { it.id.isNotBlank() }
+        // 新布局一旦写过（即使 tabs 为空，例如 HITA-L），就不能再回退到旧文件；
+        // 否则旧整合包的 6 个 tab 会在冷启动时被“复活”。
+        if (PresetStateStore.layoutPresetId(context) != null) {
+            return PresetStateStore.tabs(context)
+        }
+        val legacy = legacyTabs(context)
+        if (legacy.isEmpty()) return emptyList()
+        PresetStateStore.saveLayout(context, legacyPresetId(context) ?: "", legacy)
+        return legacy
     }
 
-    fun clear(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
-    }
+    private fun legacyTabs(context: Context): List<PresetTab> =
+        PresetLayoutCodec.decode(
+            context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
+                .getString(LEGACY_TABS, null),
+        )
+
+    private fun legacyPresetId(context: Context): String? =
+        context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
+            .getString(LEGACY_PRESET, null)
 }

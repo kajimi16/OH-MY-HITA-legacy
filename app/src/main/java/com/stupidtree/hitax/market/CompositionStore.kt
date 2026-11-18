@@ -16,6 +16,7 @@ object CompositionStore {
     private const val KEY_KILL_SWITCHES = "kill_switches"
     private const val KEY_APPLIED_PRESET = "applied_preset"
     private const val KEY_DESIRED = "desired_entries"
+    private const val KEY_PRESET_DISABLED = "preset_disabled"
     private const val KEY_STARTUP = "startup_outcome"
     private const val DIRECTORY = "diagnostics"
     private const val SNAPSHOT = "composition.json"
@@ -66,6 +67,51 @@ object CompositionStore {
             .apply()
     }
 
+    /**
+     * 上一次整合包对账时被停用的条目。
+     *
+     * 这些条目不是用户手动停用的；切回包含它们的整合包时必须允许重新启用，
+     * 否则 HITA-L → HITA-Android 会被自己的旧禁用标记卡住。
+     */
+    fun presetDisabled(context: Context): Set<CompositionTarget> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.contains(KEY_PRESET_DISABLED)) {
+            return prefs.getStringSet(KEY_PRESET_DISABLED, emptySet())
+                .orEmpty()
+                .mapNotNull(::parseTarget)
+                .toSet()
+        }
+        // 升级路径：旧版本没有单独记录自动停用集合，从 desired_entries 还原并落盘。
+        val derived = CompositionPlan(desiredEntries(context), emptyList()).automaticDisabledTargets()
+        savePresetDisabled(context, derived)
+        return derived
+    }
+
+    private fun savePresetDisabled(context: Context, targets: Set<CompositionTarget>) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putStringSet(KEY_PRESET_DISABLED, targets.map(::encodeTarget).toSet())
+            .apply()
+    }
+
+    /** 用户手动操作后，该条目不再属于“整合包自动停用”。 */
+    fun clearPresetDisabled(context: Context, target: CompositionTarget) {
+        val next = presetDisabled(context) - target
+        savePresetDisabled(context, next)
+    }
+
+    fun effectiveUserDisabled(
+        context: Context,
+        kind: CompositionKind,
+        disabledIds: Set<String>,
+    ): Set<String> {
+        val automatic = presetDisabled(context)
+            .filter { it.kind == kind }
+            .map { it.id }
+            .toSet()
+        return disabledIds - automatic
+    }
+
     fun record(context: Context, plan: CompositionPlan, state: CompositionState) {
         // desired 只在一次对账成功后落盘；失败时保留下一次启动可恢复的旧组合。
         write(context, snapshotJson(plan, state, report = null))
@@ -77,7 +123,10 @@ object CompositionStore {
         state: CompositionState,
         report: CompositionReport,
     ) {
-        if (report.canActivate) saveDesired(context, plan.entries)
+        if (report.canActivate) {
+            saveDesired(context, plan.entries)
+            savePresetDisabled(context, plan.automaticDisabledTargets())
+        }
         write(context, snapshotJson(plan, state, report))
     }
 

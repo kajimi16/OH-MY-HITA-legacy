@@ -376,15 +376,21 @@ class HApplication : Application() {
                 .toSet(),
         )
         val userDisabled = mapOf(
-            CompositionKind.UI to uiInstalled
-                .filterNot { it.enabled }
-                .map { it.id }
-                .toSet(),
-            CompositionKind.DEX to dexInstalled
-                .filterNot { installer.isEnabled(it.id) }
-                .map { it.id }
-                .toSet(),
-            CompositionKind.BUILTIN to PluginPrefs.disabled(this),
+            CompositionKind.UI to CompositionStore.effectiveUserDisabled(
+                this,
+                CompositionKind.UI,
+                uiInstalled.filterNot { it.enabled }.map { it.id }.toSet(),
+            ),
+            CompositionKind.DEX to CompositionStore.effectiveUserDisabled(
+                this,
+                CompositionKind.DEX,
+                dexInstalled.filterNot { installer.isEnabled(it.id) }.map { it.id }.toSet(),
+            ),
+            CompositionKind.BUILTIN to CompositionStore.effectiveUserDisabled(
+                this,
+                CompositionKind.BUILTIN,
+                PluginPrefs.disabled(this),
+            ),
         )
         val live = index?.presets?.firstOrNull { it.id == saved.id }
         val decision = planStartup(

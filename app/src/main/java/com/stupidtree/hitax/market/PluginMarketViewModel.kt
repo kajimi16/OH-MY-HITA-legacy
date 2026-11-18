@@ -256,6 +256,10 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
     /** 开关语义：启用=安装，停用=卸载但保留数据；变更后重建界面。 */
     fun setBuiltinEnabled(row: BuiltinPluginManager.Row, enabled: Boolean) {
         executor.execute {
+            CompositionStore.clearPresetDisabled(
+                ctx(),
+                CompositionTarget(CompositionKind.BUILTIN, row.id),
+            )
             val error = runCatching { builtin.setEnabled(row.id, enabled) }.exceptionOrNull()
             message.postValue(error?.let { "操作失败：${it.message}" } ?: null)
             builtinPlugins.postValue(builtin.rows())
@@ -265,6 +269,10 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
 
     fun setUiPluginEnabled(plugin: InstalledUiPlugin, enabled: Boolean) {
         executor.execute {
+            CompositionStore.clearPresetDisabled(
+                ctx(),
+                CompositionTarget(CompositionKind.UI, plugin.id),
+            )
             uiPluginManager.setEnabled(plugin.id, enabled)
             uiPlugins.postValue(uiPluginManager.installed())
             if (hasMainTab(plugin)) reloadUi.postValue(true)
@@ -281,6 +289,10 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
     /** 停用保留已下载文件，只从内核卸载；启用重新装载。 */
     fun setMarketEnabled(entry: MarketPlugin, enabled: Boolean) {
         executor.execute {
+            CompositionStore.clearPresetDisabled(
+                ctx(),
+                CompositionTarget(CompositionKind.DEX, entry.id),
+            )
             val error = runCatching { installer.setEnabled(entry.id, enabled) }.exceptionOrNull()
             message.postValue(error?.let { "操作失败：${it.message}" } ?: null)
             refresh()
@@ -409,16 +421,21 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
             val installedDex = installer.installed().associateBy { it.id }
             val builtins = builtin.rows().associateBy { it.id }
             val userDisabled = mapOf(
-                CompositionKind.UI to installedUi.values
-                    .filterNot { it.enabled }
-                    .map { it.id }
-                    .toSet(),
-                CompositionKind.DEX to installedDex.keys
-                    .filterNot { installer.isEnabled(it) }
-                    .toSet(),
-                CompositionKind.BUILTIN to builtins.keys
-                    .filter { PluginPrefs.isDisabled(ctx(), it) }
-                    .toSet(),
+                CompositionKind.UI to CompositionStore.effectiveUserDisabled(
+                    ctx(),
+                    CompositionKind.UI,
+                    installedUi.values.filterNot { it.enabled }.map { it.id }.toSet(),
+                ),
+                CompositionKind.DEX to CompositionStore.effectiveUserDisabled(
+                    ctx(),
+                    CompositionKind.DEX,
+                    installedDex.keys.filterNot { installer.isEnabled(it) }.toSet(),
+                ),
+                CompositionKind.BUILTIN to CompositionStore.effectiveUserDisabled(
+                    ctx(),
+                    CompositionKind.BUILTIN,
+                    builtins.keys.filter { PluginPrefs.isDisabled(ctx(), it) }.toSet(),
+                ),
             )
             val plan = CompositionResolver.resolve(
                 baseIds = builtins.keys,
@@ -627,10 +644,19 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
             val failures = report.failures
             val optionalFailures = report.optionalFailures
             if (report.canActivate) {
-                PresetStateStore.setActive(ctx(), preset.id, preset.shell)
+                // active preset / shell / tabs 必须一次提交；否则冷启动可能读到半状态。
+                val committed = PresetStateStore.saveUi(
+                    ctx(),
+                    preset.id,
+                    preset.shell,
+                    preset.tabs,
+                )
+                if (!committed) {
+                    message.postValue("切换失败：无法保存整合包状态，已保留旧组合")
+                    refresh()
+                    return@execute
+                }
                 CompositionStore.savePreset(ctx(), preset)
-                // 预设带了 tabs 就让底栏按它组装；没有则清空，退回内置布局
-                PresetLayoutStore.save(ctx(), preset.id, preset.tabs)
                 activePresetId.postValue(preset.id)
             }
 
