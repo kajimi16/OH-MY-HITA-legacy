@@ -3,6 +3,7 @@ package com.stupidtree.hitax.agent.tools
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import com.stupidtree.hitax.agent.core.AgentTraceEvent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 
@@ -45,9 +46,13 @@ class ReActToolRegistry {
             "\"${param.name}\":${param.placeholder()}"
         }
         val required = spec.parameters.filter { it.required }.map { it.name }
+        val details = spec.parameters
+            .filter { it.description.isNotBlank() }
+            .joinToString("；") { "${it.name}=${it.description}" }
         buildString {
             append("- ${spec.name}：${spec.description} 动作输入 {$params}")
             if (required.isNotEmpty()) append("；必填：${required.joinToString(",")}")
+            if (details.isNotEmpty()) append("；说明：$details")
             append("。")
         }
     }
@@ -60,7 +65,15 @@ class ReActToolRegistry {
         val spec = specs[normalizeName(name)]
             ?: return ToolExecution("未知工具：$name", error = true)
         val call = ToolCall(spec.name, input.actionInput)
+        return runPipeline(spec, call, onTrace) { spec.tool.execute(input) }
+    }
 
+    internal suspend fun runPipeline(
+        spec: ToolSpec,
+        call: ToolCall,
+        onTrace: (AgentTraceEvent) -> Unit = {},
+        invoke: suspend () -> String?,
+    ): ToolExecution {
         for (guard in guards) {
             when (val decision = guard.check(call)) {
                 ToolDecision.Allow -> Unit
@@ -75,16 +88,18 @@ class ReActToolRegistry {
             }
         }
 
-        val argumentErrors = validate(spec, input.actionInput)
+        val argumentErrors = validate(spec, call.actionInput)
         if (argumentErrors.isNotEmpty()) {
             return ToolExecution("参数错误：${argumentErrors.joinToString("；")}", error = true)
         }
 
         var result = try {
             onTrace(AgentTraceEvent(stage = "tool", message = "执行工具：${spec.name}", payload = ""))
-            ToolExecution(withTimeout(spec.timeoutMs) { spec.tool.execute(input) }.orEmpty())
+            ToolExecution(withTimeout(spec.timeoutMs) { invoke() }.orEmpty())
         } catch (e: TimeoutCancellationException) {
             ToolExecution("工具超时：${spec.name}", error = true)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             ToolExecution("工具执行失败：${e.message ?: e::class.java.simpleName}", error = true)
         }
@@ -190,6 +205,7 @@ class ReActToolRegistry {
                         ToolParam("building", description = "教学楼名称或 id，可省略"),
                         ToolParam("day", ToolParamType.INTEGER, description = "星期 1-7，可省略"),
                     ),
+                    timeoutMs = 120_000,
                     tool = SearchEmptyClassroomTool(),
                 ),
             )
@@ -200,6 +216,7 @@ class ReActToolRegistry {
                     parameters = listOf(
                         ToolParam("name", required = true, description = "教师姓名", aliases = listOf("teacher_name")),
                     ),
+                    timeoutMs = 30_000,
                     tool = SearchTeacherTool(),
                 ),
             )

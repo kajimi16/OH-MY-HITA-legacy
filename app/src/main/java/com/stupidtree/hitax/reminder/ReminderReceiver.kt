@@ -43,12 +43,12 @@ class ReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val payload = (context.applicationContext as? HApplication)?.pluginHost
-            ?.runHook(
-                HookKeys.REMINDER_NOTIFY,
-                ReminderNotification(reminder.title, reminder.text),
-            )
-            ?: ReminderNotification(reminder.title, reminder.text)
+        val original = ReminderNotification(reminder.title, reminder.text)
+        val payload = runCatching {
+            (context.applicationContext as? HApplication)?.pluginHost
+                ?.runHook(HookKeys.REMINDER_NOTIFY, original)
+                ?: original
+        }.getOrElse { original }
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_nav_today)

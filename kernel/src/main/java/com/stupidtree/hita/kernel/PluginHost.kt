@@ -52,6 +52,7 @@ class PluginHost(
     private val globalServices = LinkedHashSet<String>()
     private val availableServices = LinkedHashSet<String>()
     private val hookListeners = LinkedHashMap<String, MutableList<Decision<*>>>()
+    private val hookLock = Any()
 
     private data class PendingInstall(
         val plugin: Plugin,
@@ -265,18 +266,24 @@ class PluginHost(
             ?: throw IllegalStateException("service not provided: ${key.name}")
 
     private fun <T> registerHook(key: HookKey<T>, listener: Decision<T>): AutoCloseable {
-        val listeners = hookListeners.getOrPut(key.name) { mutableListOf() }
-        listeners += listener
+        synchronized(hookLock) {
+            val listeners = hookListeners.getOrPut(key.name) { mutableListOf() }
+            listeners += listener
+        }
         return AutoCloseable {
-            listeners.remove(listener)
-            if (listeners.isEmpty()) hookListeners.remove(key.name)
+            synchronized(hookLock) {
+                val listeners = hookListeners[key.name] ?: return@synchronized
+                listeners.remove(listener)
+                if (listeners.isEmpty()) hookListeners.remove(key.name)
+            }
         }
     }
 
     @Suppress("UNCHECKED_CAST")
     fun <T> runHook(key: HookKey<T>, value: T): T {
-        val listeners = hookListeners[key.name]?.toList().orEmpty()
-            .map { it as Decision<T> }
+        val listeners = synchronized(hookLock) {
+            hookListeners[key.name]?.toList().orEmpty()
+        }.map { it as Decision<T> }
         return invokeHook(listeners, 0, value)
     }
 
