@@ -46,6 +46,10 @@ data class CompositionPlan(
             entries.any { it.id == item.id && it.kind == item.kind && it.required }
     }
 
+    /** 必选条目被 USER/SAFETY 层关掉时，不能静默把 preset 标成“使用中”。 */
+    fun blockingRequiredDisabled(): List<CompositionEntry> =
+        entries.filter { it.required && !it.enabled }
+
     /**
      * `applyPreset` 专属子计划：纯 BASE 条目只用于展示/依赖判断，不能因为应用 preset
      * 被重新启用。PRESET / USER / SAFETY 层仍参与对账。
