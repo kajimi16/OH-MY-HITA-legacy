@@ -284,17 +284,25 @@ class PluginHost(
         val listeners = synchronized(hookLock) {
             hookListeners[key.name]?.toList().orEmpty()
         }.map { it as Decision<T> }
-        return invokeHook(listeners, 0, value)
+        return invokeHook(key.name, listeners, 0, value)
     }
 
     private fun <T> invokeHook(
+        keyName: String,
         listeners: List<Decision<T>>,
         index: Int,
         value: T,
     ): T {
         if (index >= listeners.size) return value
-        return listeners[index].handle(value) { next ->
-            invokeHook(listeners, index + 1, next)
+        var delegated = false
+        return try {
+            listeners[index].handle(value) { next ->
+                delegated = true
+                invokeHook(keyName, listeners, index + 1, next)
+            }
+        } catch (t: Throwable) {
+            logger("hook $keyName listener $index failed", t)
+            if (delegated) value else invokeHook(keyName, listeners, index + 1, value)
         }
     }
 
@@ -340,6 +348,7 @@ class PluginHost(
     inner class PluginScope(private val pluginId: String) : PluginContext {
 
         private val undoStack = ArrayList<() -> Unit>()
+        private var revoked = false
 
         override fun <T : Any> service(key: ServiceKey<T>): T? = this@PluginHost.service(key)
 
@@ -378,6 +387,7 @@ class PluginHost(
 
         override val hooks: PluginHooks = object : PluginHooks {
             override fun <T> register(key: HookKey<T>, listener: Decision<T>): AutoCloseable {
+                if (revoked) return AutoCloseable {}
                 val handle = this@PluginHost.registerHook(key, listener)
                 undoStack += { handle.close() }
                 return handle
@@ -462,6 +472,7 @@ class PluginHost(
         }
 
         fun revokeAll() {
+            revoked = true
             undoStack.asReversed().forEach { runCatching(it) }
             undoStack.clear()
         }

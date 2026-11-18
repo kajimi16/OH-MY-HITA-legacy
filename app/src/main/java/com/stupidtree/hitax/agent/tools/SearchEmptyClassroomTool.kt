@@ -86,8 +86,11 @@ class SearchEmptyClassroomTool : SuspendingReActTool {
                 }
             }
             observeForever(observer)
-            withContext(Dispatchers.IO) { latch.await(timeoutMs, TimeUnit.MILLISECONDS) }
-            removeObserver(observer)
-            value
+            try {
+                withContext(Dispatchers.IO) { latch.await(timeoutMs, TimeUnit.MILLISECONDS) }
+                value
+            } finally {
+                removeObserver(observer)
+            }
         }
 }

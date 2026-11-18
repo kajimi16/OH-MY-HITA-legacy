@@ -22,7 +22,7 @@ class ReActToolRegistryTest {
         assertTrue(lines.any { it.contains("submit_review") && it.contains("必填：course_code,content") })
         assertTrue(lines.any { it.contains("get_course_detail") && it.contains("course_code") })
         assertTrue(lines.any { it.contains("web_search") && it.contains("param") })
-        assertTrue(lines.any { it.contains("day_offset=0=今天") })
+        assertTrue(lines.any { it.contains("day_offset=相对今天的天数") })
         assertTrue(lines.any { it.contains("week=周次") })
     }
 

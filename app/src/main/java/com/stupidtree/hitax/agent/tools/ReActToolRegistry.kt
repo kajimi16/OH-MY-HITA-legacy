@@ -64,8 +64,11 @@ class ReActToolRegistry {
     ): ToolExecution {
         val spec = specs[normalizeName(name)]
             ?: return ToolExecution("未知工具：$name", error = true)
-        val call = ToolCall(spec.name, input.actionInput)
-        return runPipeline(spec, call, onTrace) { spec.tool.execute(input) }
+        val cleaned = clean(input.actionInput)
+        val call = ToolCall(spec.name, cleaned)
+        return runPipeline(spec, call, onTrace) {
+            spec.tool.execute(input.copy(actionInput = cleaned))
+        }
     }
 
     internal suspend fun runPipeline(
@@ -75,7 +78,13 @@ class ReActToolRegistry {
         invoke: suspend () -> String?,
     ): ToolExecution {
         for (guard in guards) {
-            when (val decision = guard.check(call)) {
+            val decision = runCatching { guard.check(call) }.getOrElse {
+                return ToolExecution(
+                    "守卫异常：${it.message ?: it::class.java.simpleName}",
+                    error = true,
+                )
+            }
+            when (decision) {
                 ToolDecision.Allow -> Unit
                 is ToolDecision.Deny -> return ToolExecution(
                     "工具被拒绝：${decision.reason}",
@@ -105,7 +114,7 @@ class ReActToolRegistry {
         }
 
         for (processor in postProcessors) {
-            result = processor.process(call, result) ?: result
+            result = runCatching { processor.process(call, result) }.getOrNull() ?: result
         }
 
         if (result.text.length > spec.maxObservationChars) {
@@ -145,9 +154,15 @@ class ReActToolRegistry {
         val primitive = value?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive ?: return false
         return when (type) {
             ToolParamType.STRING -> primitive.isString
-            ToolParamType.INTEGER -> primitive.isNumber && primitive.asDouble % 1.0 == 0.0
-            ToolParamType.NUMBER -> primitive.isNumber
-            ToolParamType.BOOLEAN -> primitive.isBoolean
+            ToolParamType.INTEGER ->
+                (primitive.isNumber && primitive.asDouble % 1.0 == 0.0) ||
+                    (primitive.isString && primitive.asString.toIntOrNull() != null)
+            ToolParamType.NUMBER ->
+                primitive.isNumber ||
+                    (primitive.isString && primitive.asString.toDoubleOrNull() != null)
+            ToolParamType.BOOLEAN ->
+                primitive.isBoolean ||
+                    (primitive.isString && primitive.asString.lowercase() in setOf("true", "false"))
         }
     }
 
@@ -176,9 +191,6 @@ class ReActToolRegistry {
                 ToolSpec(
                     name = "get_timetable",
                     description = "查询今天/明天/昨天等日期的课表；日期由用户消息中的相对时间决定。",
-                    parameters = listOf(
-                        ToolParam("day_offset", ToolParamType.INTEGER, description = "0=今天，1=明天，-1=昨天"),
-                    ),
                     tool = GetTimetableTool(),
                 ),
             )

@@ -25,6 +25,7 @@ data class ToolSpec(
     val description: String,
     val parameters: List<ToolParam> = emptyList(),
     val maxObservationChars: Int = 1800,
+    /** 协作式超时：同步工具若不响应线程中断，仍可能继续运行。 */
     val timeoutMs: Long = 15_000,
     val tool: SuspendingReActTool,
 )
