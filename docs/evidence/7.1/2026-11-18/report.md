@@ -16,6 +16,7 @@
 |---|---|---:|---|
 | 今日 | logged out, no courses | 5.358% | Header card structure/colors now close; remaining glyph/icon edge differences |
 | 待办 | logged out, empty | 3.540% | Content nearly aligned; remaining text raster differences |
+| 助手 | logged out, empty conversation | 3.058% | Title/icon aligned; input dock still lacks the attachment button |
 
 Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floating dock.
 

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -120,7 +121,7 @@ fun AgentChatScreen(viewModel: AgentChatViewModel, timetableId: String?) {
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(top = 12.5.dp)) {
-            Box(Modifier.fillMaxWidth().height(73.dp).padding(start = 14.dp), contentAlignment = Alignment.TopStart) {
+            Box(Modifier.fillMaxWidth().height(73.dp).padding(start = 16.dp), contentAlignment = Alignment.TopStart) {
                 Text(
                     "助手",
                     color = MaterialTheme.colorScheme.onSurface,
@@ -174,7 +175,7 @@ fun AgentChatScreen(viewModel: AgentChatViewModel, timetableId: String?) {
                     Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = { showSettings = true }) {
-                    Icon(Icons.Default.Settings, "AI 设置", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Default.Menu, "AI 设置", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
