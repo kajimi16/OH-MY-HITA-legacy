@@ -192,17 +192,29 @@ private fun TodayPage(service: TimetableService?) {
             modifier = Modifier.fillMaxWidth().heightIn(min = 190.dp),
         ) {
             Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                Text(
-                    if (events.isEmpty()) "今日空闲" else "今日课程",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (events.isEmpty()) "今日空闲" else "今日课程",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (events.isEmpty()) {
+                        Text("享受当下！", color = Color(0xFF3390EC), fontSize = 14.sp)
+                    }
+                }
                 if (events.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
                     events.sortedBy { it.from.time }.forEach { event ->
                         EventRow(event)
                     }
                 }
+            }
+        }
+        if (events.isEmpty()) {
+            Spacer(Modifier.height(190.dp))
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("今天暂无课程或日程安排", color = Color(0xFF808080), fontSize = 14.sp)
             }
         }
     }
