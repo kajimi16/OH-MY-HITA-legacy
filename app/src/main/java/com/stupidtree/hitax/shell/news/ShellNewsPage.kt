@@ -2,10 +2,12 @@ package com.stupidtree.hitax.shell.news
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Typeface
 import android.text.Html
 import android.webkit.CookieManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,12 +19,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -36,7 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,20 +54,28 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
-private data class BlogItem(val title: String, val url: String, val date: String)
+private data class BlogItem(val title: String, val url: String, val date: String, val millis: Long, val path: String)
+private data class BlogNode(val item: BlogItem, val children: List<BlogNode> = emptyList())
 
 /** HITA_Android 原版资讯页的 Shell 入口：HOA 资讯 + 校园通知两个分页。 */
 @Composable
 internal fun ShellNewsPage() {
     var tab by remember { mutableIntStateOf(0) }
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(Color(0xFFFAFBFE))) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, top = 20.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("资讯", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+        }
+        Spacer(Modifier.height(11.dp))
         TabRow(
             selectedTabIndex = tab,
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
+            containerColor = Color.White,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
-            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("资讯") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("通知") })
+            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("博客") })
+            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("校园通知") })
         }
         when (tab) {
             0 -> BlogTab()
@@ -77,6 +91,8 @@ private fun BlogTab() {
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
+    var expanded by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val blogFont = remember { FontFamily(Typeface.createFromAsset(context.assets, "blog/lxgw-wenkai.ttf")) }
 
     LaunchedEffect(reload) {
         loading = true
@@ -88,33 +104,62 @@ private fun BlogTab() {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("HOA 资讯", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            TextButton(onClick = { reload++ }) { Text("刷新") }
-        }
         when {
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             error != null -> EmptyMessage("加载失败：$error") { reload++ }
             articles.isEmpty() -> EmptyMessage("暂无文章") { reload++ }
-            else -> LazyColumn(
-                Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(articles, key = { it.url }) { article ->
-                    Card(
-                        Modifier.fillMaxWidth().clickable { openUrl(context, article.url) },
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
-                    ) {
-                        Column(Modifier.padding(14.dp)) {
-                            Text(article.title, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-                            Spacer(Modifier.height(4.dp))
-                            Text(article.date, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            else -> {
+                val nodes = remember(articles) { groupBlog(articles) }
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(nodes, key = { it.item.url }) { node ->
+                        val isSeries = node.children.isNotEmpty()
+                        val isOpen = node.item.url in expanded
+                        Surface(
+                            Modifier.fillMaxWidth().clickable {
+                                if (isSeries) {
+                                    expanded = if (isOpen) expanded - node.item.url else expanded + node.item.url
+                                } else {
+                                    openUrl(context, node.item.url)
+                                }
+                            },
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                            color = Color.White,
+                            shadowElevation = 10.dp,
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.2.dp)) {
+                                Row(Modifier.fillMaxWidth()) {
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(node.item.title, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, fontFamily = blogFont)
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(node.item.date, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = blogFont)
+                                    }
+                                    if (isSeries) {
+                                        Text("▸", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
+                                    }
+                                }
+                                if (isSeries && isOpen) {
+                                    Column(Modifier.padding(top = 8.dp, start = 8.dp)) {
+                                        node.children.forEach { child ->
+                                            Row(
+                                                Modifier.fillMaxWidth().clickable { openUrl(context, child.item.url) }
+                                                    .padding(vertical = 6.dp),
+                                            ) {
+                                                Spacer(Modifier.width(10.dp))
+                                                Column {
+                                                    Text(child.item.title, fontWeight = FontWeight.Medium, fontSize = 15.sp, fontFamily = blogFont)
+                                                    Spacer(Modifier.height(2.dp))
+                                                    Text(child.item.date, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = blogFont)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -147,15 +192,6 @@ private fun NoticeTab() {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("校园通知", fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            if (cookie.isNotBlank()) {
-                TextButton(onClick = { reload++ }) { Text("刷新") }
-            }
-        }
         if (cookie.isBlank()) {
             EmptyMessage("需要先登录 info.hitsz.edu.cn", "登录门户") {
                 loginLauncher.launch(Intent(context, ShellPortalLoginActivity::class.java))
@@ -172,11 +208,11 @@ private fun NoticeTab() {
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(notices, key = { it.id }) { notice ->
-                    Card(
+                    Surface(
                         Modifier.fillMaxWidth().clickable { openUrl(context, notice.url) },
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                        color = Color.White,
+                        shadowElevation = 6.dp,
                     ) {
                         Column(Modifier.padding(14.dp)) {
                             Text(notice.title, fontWeight = FontWeight.Medium, fontSize = 15.sp)
@@ -221,7 +257,8 @@ private fun fetchBlog(): List<BlogItem> {
     val conn = URL("https://hoa.moe/blog/rss.xml").openConnection() as HttpURLConnection
     conn.connectTimeout = 10_000
     conn.readTimeout = 20_000
-    conn.setRequestProperty("User-Agent", "OH-MY-HITA-News/0.7")
+    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
+    conn.setRequestProperty("Accept", "application/rss+xml,application/xml;q=0.9,*/*;q=0.8")
     return try {
         val xml = conn.inputStream.bufferedReader().use { it.readText() }
         Regex("<item>(.*?)</item>", RegexOption.DOT_MATCHES_ALL)
@@ -230,8 +267,10 @@ private fun fetchBlog(): List<BlogItem> {
                 val body = item.groupValues[1]
                 val title = tag(body, "title")?.let { Html.fromHtml(it).toString() } ?: return@mapNotNull null
                 val url = tag(body, "link") ?: return@mapNotNull null
-                BlogItem(title, url, formatDate(tag(body, "pubDate")))
+                val rawDate = tag(body, "pubDate")
+                BlogItem(title, url, formatDate(rawDate), parseDateMillis(rawDate), pathFromLink(url))
             }
+            .sortedWith(compareByDescending<BlogItem> { it.millis }.thenByDescending { it.path })
             .take(30)
             .toList()
     } finally {
@@ -242,6 +281,37 @@ private fun fetchBlog(): List<BlogItem> {
 private fun tag(body: String, name: String): String? =
     Regex("<$name>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?</$name>", RegexOption.DOT_MATCHES_ALL)
         .find(body)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+
+private fun parseDateMillis(raw: String?): Long {
+    if (raw.isNullOrBlank()) return 0L
+    val parser = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.ENGLISH)
+    parser.timeZone = TimeZone.getTimeZone("Asia/Shanghai")
+    return runCatching { parser.parse(raw)?.time ?: 0L }.getOrDefault(0L)
+}
+
+private fun pathFromLink(link: String): String =
+    link.substringAfter("hoa.moe/", link).removePrefix("blog/").substringBefore('?').trim('/')
+
+private fun groupBlog(articles: List<BlogItem>): List<BlogNode> {
+    val byPath = articles.filter { it.path.isNotBlank() }.associateBy { it.path }
+    val children = LinkedHashMap<String, MutableList<BlogItem>>()
+    val roots = mutableListOf<BlogItem>()
+    for (article in articles) {
+        if (article.path.isBlank()) { roots += article; continue }
+        var cursor = article.path.substringBeforeLast('/', "")
+        var ancestor: String? = null
+        while (cursor.isNotEmpty()) {
+            if (cursor in byPath) { ancestor = cursor; break }
+            cursor = cursor.substringBeforeLast('/', "")
+        }
+        if (ancestor == null) roots += article else children.getOrPut(ancestor) { mutableListOf() } += article
+    }
+    fun build(article: BlogItem): BlogNode = BlogNode(
+        article,
+        children[article.path].orEmpty().sortedWith(compareBy({ it.path }, { it.millis })).map(::build),
+    )
+    return roots.distinctBy { it.url }.sortedByDescending { it.millis }.map(::build)
+}
 
 private fun formatDate(raw: String?): String {
     if (raw.isNullOrBlank()) return ""
