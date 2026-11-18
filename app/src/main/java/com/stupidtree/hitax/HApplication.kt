@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import android.util.Log
 import androidx.annotation.WorkerThread
+import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.stupidtree.stupiduser.data.repository.LocalUserRepository
 import com.stupidtree.sync.StupidSync
@@ -11,7 +12,22 @@ import com.stupidtree.hita.api.EasService
 import com.stupidtree.hita.api.HostUiService
 import com.stupidtree.hita.api.ThemeController
 import com.stupidtree.hita.kernel.PluginHost
+import com.stupidtree.hitax.market.CompositionExecutor
+import com.stupidtree.hitax.market.CompositionKind
+import com.stupidtree.hitax.market.CompositionState
+import com.stupidtree.hitax.market.CompositionStore
+import com.stupidtree.hitax.market.IndexCache
+import com.stupidtree.hitax.market.MarketIndex
+import com.stupidtree.hitax.market.MarketSources
+import com.stupidtree.hitax.market.PluginInstaller
+import com.stupidtree.hitax.market.StartupOutcome
+import com.stupidtree.hitax.market.diagnosticLines
+import com.stupidtree.hitax.market.executeStartup
+import com.stupidtree.hitax.market.planStartup
+import com.stupidtree.hitax.plugin.BuiltinPluginManager
 import com.stupidtree.hitax.plugin.PluginCatalog
+import com.stupidtree.hitax.plugin.PluginPrefs
+import com.stupidtree.hitax.uiplugin.UiPluginManager
 import com.stupidtree.hitax.data.work.CourseReminderScheduler
 import java.io.File
 import java.security.SecureRandom
@@ -259,6 +275,11 @@ class HApplication : Application() {
         // 恢复上次安装的运行时插件（T1）；单个失败不影响其它插件。
         com.stupidtree.hitax.market.PluginInstaller(this, pluginHost).restore()
 
+        // A2：必须在内置装配与运行时插件恢复之后重放，否则 host.isInstalled() 为空，
+        // 内置插件的 enable/disable 会退化成 no-op。启动期只对账，不下载。
+        runCatching { replayActivePreset() }
+            .onFailure { Log.e(TAG, "startup composition replay failed", it) }
+
         // 宿主不再认识任何具体数据表：只按 key 查 SyncCodec 并转发。
         StupidSync.init(this, object : StupidSync.PushDelegate {
 
@@ -299,6 +320,170 @@ class HApplication : Application() {
         
         // 初始化课程提醒（根据用户设置自动调度或取消）
         CourseReminderScheduler.autoSchedule(this)
+    }
+
+    /**
+     * 启动期按 active preset 重放一次组合。
+     *
+     * 不动网络、不装 DEX/UI：只对已安装/可装配的条目做 enable/disable。缓存索引缺失、
+     * 必选条目缺失或被 USER/SAFETY 停用时，保持本次启动已有的组合并写诊断。
+     */
+    private fun replayActivePreset() {
+        val saved = CompositionStore.savedPreset(this)
+        if (saved == null) {
+            CompositionStore.saveStartupOutcome(
+                this,
+                StartupOutcome(
+                    attempted = false,
+                    note = "没有已应用的整合包",
+                    at = System.currentTimeMillis(),
+                ),
+            )
+            return
+        }
+        val cached = IndexCache.loadStartup(filesDir, MarketSources.active(this).url)
+        val index = cached?.let {
+            runCatching { Gson().fromJson(it.raw, MarketIndex::class.java) }.getOrNull()
+        }
+        val uiManager = UiPluginManager(this)
+        val installer = PluginInstaller(this, pluginHost)
+        val builtin = BuiltinPluginManager(this)
+        val uiInstalled = uiManager.installed()
+        val dexInstalled = installer.installed()
+        val builtinRows = builtin.rows()
+        val builtinIds = builtinRows.map { it.id }.toSet()
+        val available = mapOf(
+            CompositionKind.UI to index?.uiPlugins.orEmpty().map { it.id }.toSet(),
+            CompositionKind.DEX to index?.plugins.orEmpty().map { it.id }.toSet(),
+            CompositionKind.BUILTIN to builtinIds,
+        )
+        val installed = mapOf(
+            CompositionKind.UI to uiInstalled.map { it.id }.toSet(),
+            CompositionKind.DEX to dexInstalled.map { it.id }.toSet(),
+            // 内置插件代码随 APK 常驻；这里表示“可装配”，是否生效看 enabled。
+            CompositionKind.BUILTIN to builtinIds,
+        )
+        val enabled = mapOf(
+            CompositionKind.UI to uiInstalled.filter { it.enabled }.map { it.id }.toSet(),
+            CompositionKind.DEX to dexInstalled
+                .filter { installer.isEnabled(it.id) }
+                .map { it.id }
+                .toSet(),
+            CompositionKind.BUILTIN to builtinRows
+                .filter { it.installed }
+                .map { it.id }
+                .toSet(),
+        )
+        val userDisabled = mapOf(
+            CompositionKind.UI to uiInstalled
+                .filterNot { it.enabled }
+                .map { it.id }
+                .toSet(),
+            CompositionKind.DEX to dexInstalled
+                .filterNot { installer.isEnabled(it.id) }
+                .map { it.id }
+                .toSet(),
+            CompositionKind.BUILTIN to PluginPrefs.disabled(this),
+        )
+        val live = index?.presets?.firstOrNull { it.id == saved.id }
+        val decision = planStartup(
+            savedPreset = saved,
+            livePreset = live,
+            available = available,
+            installed = installed,
+            enabled = enabled,
+            userDisabled = userDisabled,
+            killSwitches = CompositionStore.killSwitches(this),
+            indexAvailable = cached != null,
+            appliedEntries = CompositionStore.desiredEntries(this),
+        )
+        val state = CompositionState(installed = installed, enabled = enabled)
+        val executor = object : CompositionExecutor {
+            override fun install(kind: CompositionKind, id: String): Result<Boolean> = when (kind) {
+                // 内置插件“安装”只是重新装配，不下载、不经过 materializer。
+                CompositionKind.BUILTIN -> runCatching {
+                    builtin.setEnabledTransient(id, true).getOrThrow()
+                    true
+                }
+                else -> Result.failure(
+                    IllegalStateException("启动期不安装 ${kind.name.lowercase()} 插件"),
+                )
+            }
+
+            override fun enable(kind: CompositionKind, id: String): Result<Boolean> = when (kind) {
+                CompositionKind.UI -> if (uiManager.setEnabled(id, true)) {
+                    Result.success(false)
+                } else {
+                    Result.failure(IllegalStateException("启用失败"))
+                }
+                CompositionKind.DEX -> runCatching {
+                    installer.setEnabled(id, true)
+                    false
+                }
+                CompositionKind.BUILTIN -> builtin.setEnabledTransient(id, true).map { false }
+            }
+
+            override fun disable(kind: CompositionKind, id: String): Result<Boolean> = when (kind) {
+                CompositionKind.UI -> if (uiManager.setEnabled(id, false)) {
+                    Result.success(false)
+                } else {
+                    Result.failure(IllegalStateException("停用失败"))
+                }
+                CompositionKind.DEX -> runCatching {
+                    installer.setEnabled(id, false)
+                    false
+                }
+                CompositionKind.BUILTIN -> builtin.setEnabledTransient(id, false).map { false }
+            }
+
+            override fun restore(
+                kind: CompositionKind,
+                id: String,
+                installed: Boolean,
+                enabled: Boolean,
+            ): Result<Boolean> = when (kind) {
+                CompositionKind.UI -> runCatching {
+                    installed && uiManager.setEnabled(id, enabled)
+                }
+                CompositionKind.DEX -> runCatching {
+                    if (installed) {
+                        installer.setEnabled(id, enabled)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                CompositionKind.BUILTIN -> runCatching {
+                    builtin.setEnabledTransient(id, enabled).getOrThrow()
+                    true
+                }
+            }
+        }
+        val report = executeStartup(decision, state, executor)
+        CompositionStore.recordStartup(
+            this,
+            decision.plan,
+            state,
+            StartupOutcome(
+                attempted = true,
+                canReconcile = decision.canReconcile,
+                note = decision.note,
+                skipped = decision.diagnosticLines(),
+                enabled = report.enabled,
+                disabled = report.disabled,
+                failures = report.allFailures,
+                at = System.currentTimeMillis(),
+            ),
+        )
+        if (report.enabled > 0 || report.disabled > 0) {
+            Log.i(
+                TAG,
+                "startup composition replay: enabled=${report.enabled} disabled=${report.disabled}",
+            )
+        }
+        if (report.allFailures.isNotEmpty()) {
+            Log.w(TAG, "startup composition failures: ${report.allFailures.joinToString("；")}")
+        }
     }
 
     private fun handleSSLHandshake() {

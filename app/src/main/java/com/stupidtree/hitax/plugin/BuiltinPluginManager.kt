@@ -50,6 +50,36 @@ class BuiltinPluginManager(private val application: Application) {
     fun setEnabled(pluginId: String, enabled: Boolean): Result<Unit> =
         if (enabled) install(pluginId) else uninstall(pluginId, purge = false)
 
+    /**
+     * 启动期组合重放专用：只改运行时装配/组件，不写 `PluginPrefs`。
+     *
+     * 这样旧 preset 的停用不会污染用户意图；下一次冷启动仍由 installAll 重建，
+     * 再由 startup replay 重新应用当前组合。
+     */
+    fun setEnabledTransient(pluginId: String, enabled: Boolean): Result<Unit> = runCatching {
+        check(!CompositionStore.isKillSwitched(application, CompositionKind.BUILTIN, pluginId)) {
+            "插件已被宿主安全开关停用"
+        }
+        if (enabled) {
+            check(!PluginPrefs.isDisabled(application, pluginId)) {
+                "插件被用户停用"
+            }
+            if (!host.isInstalled(pluginId)) {
+                val entry = PluginCatalog.entry(application, pluginId)
+                    ?: error("插件清单中没有 $pluginId")
+                val plugin = PluginCatalog.instantiate(entry, application)
+                    ?: error("插件类不可用：${entry.className}")
+                PluginPurge.cancel(application, pluginId)
+                host.install(plugin, entry.descriptor())
+            }
+            check(host.isInstalled(pluginId)) { "插件安装失败：$pluginId" }
+            PluginComponents.setEnabled(application, pluginId, true)
+        } else {
+            host.uninstall(pluginId)
+            PluginComponents.setEnabled(application, pluginId, false)
+        }
+    }
+
     fun install(pluginId: String): Result<Unit> = runCatching {
         check(!CompositionStore.isKillSwitched(application, CompositionKind.BUILTIN, pluginId)) {
             "插件已被宿主安全开关停用"

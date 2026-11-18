@@ -15,6 +15,8 @@ object CompositionStore {
     private const val PREFS = "composition_state"
     private const val KEY_KILL_SWITCHES = "kill_switches"
     private const val KEY_APPLIED_PRESET = "applied_preset"
+    private const val KEY_DESIRED = "desired_entries"
+    private const val KEY_STARTUP = "startup_outcome"
     private const val DIRECTORY = "diagnostics"
     private const val SNAPSHOT = "composition.json"
 
@@ -50,7 +52,22 @@ object CompositionStore {
             .apply()
     }
 
+    /** 最近一次组合计算的目标条目；启动期用它还原“上一次生效的组合”。 */
+    fun desiredEntries(context: Context): List<CompositionEntry> = runCatching {
+        val json = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_DESIRED, null) ?: return emptyList()
+        Gson().fromJson(json, Array<CompositionEntry>::class.java).toList()
+    }.getOrDefault(emptyList())
+
+    private fun saveDesired(context: Context, entries: List<CompositionEntry>) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_DESIRED, Gson().toJson(entries))
+            .apply()
+    }
+
     fun record(context: Context, plan: CompositionPlan, state: CompositionState) {
+        // desired 只在一次对账成功后落盘；失败时保留下一次启动可恢复的旧组合。
         write(context, snapshotJson(plan, state, report = null))
     }
 
@@ -60,19 +77,48 @@ object CompositionStore {
         state: CompositionState,
         report: CompositionReport,
     ) {
+        if (report.canActivate) saveDesired(context, plan.entries)
         write(context, snapshotJson(plan, state, report))
+    }
+
+    /**
+     * 启动期对账结果：既写结构化偏好，也写进 composition.json 的 `startup` 段。
+     */
+    fun recordStartup(
+        context: Context,
+        plan: CompositionPlan,
+        state: CompositionState,
+        outcome: StartupOutcome,
+    ) {
+        saveStartupOutcome(context, outcome)
+        write(context, snapshotJson(plan, state, report = null, startup = outcome))
+    }
+
+    fun startupOutcome(context: Context): StartupOutcome? = runCatching {
+        val json = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_STARTUP, null) ?: return null
+        Gson().fromJson(json, StartupOutcome::class.java)
+    }.getOrNull()
+
+    fun saveStartupOutcome(context: Context, outcome: StartupOutcome) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_STARTUP, Gson().toJson(outcome))
+            .apply()
     }
 
     internal fun snapshotJson(
         plan: CompositionPlan,
         state: CompositionState,
         report: CompositionReport? = null,
-    ): String = snapshot(plan, state, report).toString()
+        startup: StartupOutcome? = null,
+    ): String = snapshot(plan, state, report, startup).toString()
 
     private fun snapshot(
         plan: CompositionPlan,
         state: CompositionState,
         report: CompositionReport?,
+        startup: StartupOutcome? = null,
     ): JsonObject {
         val gson = Gson()
         return JsonObject().apply {
@@ -91,6 +137,7 @@ object CompositionStore {
             )
             add("actual", gson.toJsonTree(state))
             if (report != null) add("result", gson.toJsonTree(report))
+            if (startup != null) add("startup", gson.toJsonTree(startup))
         }
     }
 
