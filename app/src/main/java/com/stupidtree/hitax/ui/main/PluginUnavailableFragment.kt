@@ -26,9 +26,10 @@ class PluginUnavailableFragment : Fragment() {
     ): View {
         val context = requireContext()
         val pluginId = arguments?.getString(ARG_PLUGIN_ID).orEmpty()
-        val name = (context.applicationContext as? com.stupidtree.hitax.HApplication)
+        val presetTitle = arguments?.getString(ARG_TITLE)
+        val catalogName = (context.applicationContext as? com.stupidtree.hitax.HApplication)
             ?.let { PluginCatalog.entry(it, pluginId)?.displayName }
-            ?: pluginId
+        val name = resolvePluginUnavailableTitle(catalogName, presetTitle, pluginId)
 
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -63,10 +64,23 @@ class PluginUnavailableFragment : Fragment() {
 
     companion object {
         private const val ARG_PLUGIN_ID = "pluginId"
+        private const val ARG_TITLE = "title"
 
-        fun newInstance(pluginId: String): PluginUnavailableFragment =
+        fun newInstance(pluginId: String, title: String? = null): PluginUnavailableFragment =
             PluginUnavailableFragment().apply {
-                arguments = Bundle().apply { putString(ARG_PLUGIN_ID, pluginId) }
+                arguments = Bundle().apply {
+                    putString(ARG_PLUGIN_ID, pluginId)
+                    putString(ARG_TITLE, title)
+                }
             }
     }
 }
+
+/** Catalog 名称优先（已安装/禁用插件用真实名称），其次预设 tab 标题，最后插件 id。 */
+internal fun resolvePluginUnavailableTitle(
+    catalogName: String?,
+    presetTitle: String?,
+    pluginId: String,
+): String = catalogName?.takeIf { it.isNotBlank() }
+    ?: presetTitle?.takeIf { it.isNotBlank() }
+    ?: pluginId

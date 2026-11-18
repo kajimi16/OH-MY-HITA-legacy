@@ -58,6 +58,10 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
 
     private val baseTabIds = setOf("hita.timeline", "hita.timetable")
 
+    /** 当前整合包是否声明了自己的底栏布局（复刻型预设）；为真时不再拼内置 4 基页。 */
+    private var layoutMode = false
+    private var presetBackfillRecreated = false
+
     private data class Page(
         val id: Int,
         val title: String,
@@ -171,6 +175,12 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 R.id.drawer_nav_about -> {
                     ActivityUtils.startActivity(getThis(), ActivityAbout::class.java)
                 }
+                R.id.drawer_nav_market -> {
+                    // 市场不再占底栏槽位（复刻型预设没有这个 tab），统一从抽屉进入
+                    startActivity(
+                        android.content.Intent(getThis(), com.stupidtree.hitax.market.PluginMarketActivity::class.java)
+                    )
+                }
                 else -> {
                     val entry = pluginMenuIds[item.itemId]
                     val textEntry = pluginTextMenuIds[item.itemId]
@@ -238,6 +248,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     override fun initViews() {
         setUpDrawer()
         maybeShowPresetOnboarding()
+        backfillPresetLayoutOnStartup()
         //  binding.title.text = binding.navView.menu.getItem(0).title
         pages = buildPages()
         binding.navView.submit(
@@ -272,6 +283,9 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
             override fun onPageScrollStateChanged(state: Int) {}
         })
         binding.drawerButton.setOnClickListener { binding.drawer.openDrawer(GravityCompat.END) }
+        binding.runtimeDrawerButton.setOnClickListener { binding.drawer.openDrawer(GravityCompat.END) }
+        // ViewPager2 初始不会回调 onPageSelected；布局模式下必须主动切到 runtime header。
+        showHeaderFor(binding.pager.currentItem)
 
         binding.timetableSetting.setOnClickListener {
             pluginHost().service(com.stupidtree.hita.api.TimetableUiService.KEY)
@@ -377,6 +391,27 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
             }
             .setNeutralButton("稍后", null)
             .show()
+    }
+
+    /**
+     * 存量用户的底栏补写必须在普通启动路径触发：
+     * 仅当已启用整合包且本地 tabs 为空或缺少 iconAsset 时创建市场 ViewModel，
+     * 索引加载完成后由 PresetLayoutSync 写入布局并发出 reloadUi。
+     */
+    private fun backfillPresetLayoutOnStartup() {
+        val activeId = com.stupidtree.hitax.market.PresetStateStore.activeId(this) ?: return
+        if (activeId.isBlank()) return
+        val stored = com.stupidtree.hitax.market.PresetLayoutStore.tabs(this)
+        // 布局已完整（含图标）才跳过；缺 iconAsset 时也要启动同步，否则存量用户永远用回退图标。
+        if (stored.isNotEmpty() && stored.none { it.iconAsset.isNullOrBlank() }) return
+        val vm = ViewModelProvider(this)[PluginMarketViewModel::class.java]
+        vm.reloadUi.observe(this) { reload ->
+            if (reload && !isFinishing && !presetBackfillRecreated) {
+                presetBackfillRecreated = true
+                vm.consumeReloadUi()
+                recreate()
+            }
+        }
     }
 
     /** 读取市场索引并弹出整合包列表；失败时回退到插件市场。 */
@@ -502,9 +537,13 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     }
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-    /** 供占位页跳转到插件市场（第 4 个 tab）。 */
+    /** 供占位页跳转到插件市场；布局模式下市场已脱离底栏，必须开独立页面。 */
     fun openPluginMarket() {
-        binding.pager.currentItem = 3
+        if (layoutMode) {
+            startActivity(Intent(getThis(), com.stupidtree.hitax.market.PluginMarketActivity::class.java))
+        } else {
+            binding.pager.currentItem = 3
+        }
     }
 
     override fun onBackPressed() {
@@ -544,6 +583,9 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
      */
     private fun buildPages(): List<Page> {
         val host = (application as HApplication).pluginHost
+        val layout = com.stupidtree.hitax.market.PresetLayoutStore.tabs(this)
+        layoutMode = layout.isNotEmpty()
+        if (layoutMode) return layoutPages(layout)
         val result = mutableListOf(
             Page(
                 R.id.navigation_timeline,
@@ -551,7 +593,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 R.drawable.ic_nav_today,
             ) {
                 host.tabs.find("hita.timeline")?.let { it.create() }
-                    ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
+                    ?: PluginUnavailableFragment.newInstance("hita.timeline", getString(R.string.title_timeline))
             },
             Page(
                 R.id.navigation_timetable,
@@ -559,7 +601,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 R.drawable.ic_nav_timetable,
             ) {
                 host.tabs.find("hita.timetable")?.let { it.create() }
-                    ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
+                    ?: PluginUnavailableFragment.newInstance("hita.timetable", getString(R.string.title_timetable))
             },
             Page(R.id.navigation_navigation, getString(R.string.title_navigation), R.drawable.ic_nav_navigation) {
                 NavigationFragment()
@@ -602,7 +644,104 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
         return result
     }
 
+    /**
+     * 按整合包声明的 tabs 组装底栏。
+     *
+     * 复刻型预设（hita-android-3.1.2）用它把底栏固定成与上游一致的 6 个位置，
+     * 顺序、标题都由预设决定，不受插件注册顺序影响。
+     */
+    private fun layoutPages(tabs: List<com.stupidtree.hitax.market.PresetTab>): List<Page> {
+        val host = (application as HApplication).pluginHost
+        val uiManager = com.stupidtree.hitax.uiplugin.UiPluginManager(this)
+        val uiTabs = uiManager.mainTabs().associateBy { it.plugin.id }
+        return tabs.sortedBy { it.order }.mapIndexedNotNull { index, tab ->
+            val title = tab.title?.takeIf { it.isNotBlank() } ?: tab.id
+            when {
+                tab.id == "hita.timeline" -> Page(
+                    R.id.navigation_timeline,
+                    title,
+                    com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
+                        ?: R.drawable.ic_nav_today,
+                ) {
+                    host.tabs.find("hita.timeline")?.let { it.create() }
+                        ?: PluginUnavailableFragment.newInstance("hita.timeline", title)
+                }
+
+                tab.id == "hita.timetable" -> Page(
+                    R.id.navigation_timetable,
+                    title,
+                    com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
+                        ?: R.drawable.ic_nav_timetable,
+                ) {
+                    host.tabs.find("hita.timetable")?.let { it.create() }
+                        ?: PluginUnavailableFragment.newInstance("hita.timetable", title)
+                }
+
+                tab.id == "hita.more" -> Page(
+                    R.id.navigation_navigation,
+                    title,
+                    com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
+                        ?: R.drawable.ic_nav_navigation,
+                ) { NavigationFragment() }
+
+                uiTabs[tab.id] != null -> {
+                    val installed = uiTabs.getValue(tab.id)
+                    // 预设写 builtin: 时用宿主内置图标，否则退回插件自带图标
+                    val builtinIcon = com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
+                    Page(
+                        2000 + index,
+                        title,
+                        builtinIcon ?: R.drawable.ic_nav_plugin,
+                        icon = if (builtinIcon != null) {
+                            null
+                        } else {
+                            uiManager.loadMainTabIcon(
+                                installed.plugin,
+                                tab.iconAsset
+                                    ?.takeUnless(com.stupidtree.hitax.market.BuiltinTabIcons::isBuiltin)
+                                    ?: installed.spec.iconAsset,
+                            )
+                        },
+                    ) {
+                        com.stupidtree.hitax.uiplugin.RuntimeUiTabFragment.newInstance(
+                            installed.plugin.id,
+                            installed.spec,
+                        )
+                    }
+                }
+
+                else -> {
+                    val contribution = host.tabs.find(tab.id)
+                    val icon = com.stupidtree.hitax.market.BuiltinTabIcons.resolve(tab.iconAsset)
+                        ?: contribution?.iconRes?.takeIf { it != 0 }
+                        ?: R.drawable.ic_nav_plugin
+                    if (contribution != null) {
+                        Page(1000 + index, title, icon, create = contribution.create)
+                    } else {
+                        // 预设声明了但对应插件没装：给占位页而不是丢掉这个 tab，
+                        // 否则底栏会少一格，与 3.1.2 的固定 6 个入口对不上。
+                        Page(3000 + index, title, icon) {
+                            PluginUnavailableFragment.newInstance(tab.id, title)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun showHeaderFor(position: Int) {
+        if (layoutMode) {
+            // 布局模式下页面自带标题，宿主只保留一个通用 header 显示当前页名
+            listOf(
+                binding.todayLayout,
+                binding.timetableLayout,
+                binding.navigationLayout,
+                binding.pluginLayout,
+            ).forEach { it.visibility = GONE }
+            binding.runtimeLayout.visibility = VISIBLE
+            binding.runtimeTitle.text = pages.getOrNull(position)?.title.orEmpty()
+            return
+        }
         val headers = listOf(
             binding.todayLayout,
             binding.timetableLayout,
