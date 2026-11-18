@@ -59,3 +59,8 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 - 待办多条目/混合完成、今日无课/多课/跨节、时间表周切换、助手长会话/资源卡片、资讯空态/失败态、更多登录态、深色/字体缩放的对比。
 - header/dock 独立 ≤1% 阈值；`visual_diff.py` 分区输出。
 - HITA-L 三页回归、M5、0.7.1 发布候选。
+
+
+## 验收决定（2026-11-18）
+
+用户确认：在没有可靠、非过拟合改动的前提下，接受当前残差，停止 header/dock 像素调优。M4 关闭；不声明所有页面达到 2%/1% 阈值。后续 backlog 见 7.1 文档 §8.2。
