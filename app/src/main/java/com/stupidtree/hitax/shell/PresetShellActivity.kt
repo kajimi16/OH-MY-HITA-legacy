@@ -390,33 +390,55 @@ private fun TimetablePage(service: TimetableService?) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp)) {
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "第${week}周",
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 20.sp,
+                fontSize = 18.sp,
                 modifier = Modifier.weight(1f),
             )
-            Text(timetable?.name ?: "课表", color = Color(0xFF6B7280))
+            Text(
+                timetable?.name ?: "默认课表1",
+                color = Color(0xFF6B7280),
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .background(Color(0xFFE8F0FE), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            )
         }
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp, start = 42.dp, end = 8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp, start = 12.dp, end = 8.dp), verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    SimpleDateFormat("M月", Locale.CHINA).format(Date(start)),
+                    color = Color(0xFF9CA3AF),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
             listOf("一", "二", "三", "四", "五", "六", "日").forEachIndexed { index, day ->
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(day, fontWeight = FontWeight.Medium)
                     val date = ((start + index * 24L * 3600 * 1000) / 1000L)
+                    Box(
+                        Modifier.size(26.dp).background(Color.White, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(day, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    }
                     Text(
                         SimpleDateFormat("d", Locale.CHINA).format(Date(date * 1000L)),
                         color = Color(0xFF9CA3AF),
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }
         }
         Row(Modifier.fillMaxSize().padding(top = 4.dp)) {
-            Column(Modifier.width(38.dp)) {
+            Column(Modifier.width(48.dp)) {
                 repeat(12) { index ->
-                    Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.TopCenter) {
-                        Text("${index + 1}", color = Color(0xFF9CA3AF), fontSize = 11.sp)
+                    Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
+                        Text("第${index + 1}节", color = Color(0xFF9CA3AF), fontSize = 10.sp)
                     }
                 }
             }
