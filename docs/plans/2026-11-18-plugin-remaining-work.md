@@ -1,6 +1,6 @@
 # 插件架构剩余工作：可执行拆分
 
-> 基线：`8a75ca3`（2026-11-18）
+> 基线：`e46779e`（2026-11-18）
 > 目标：把 `docs/plugin-roadmap.md` 中尚未完成的部分拆成 Dumate 可直接执行的任务卡。
 > 纪律：只改任务卡点名文件；不引入 YAML / JS 解释器 / 通用事件总线 / 第二套工具注册表；不卸载用户设备上的包。
 
@@ -12,27 +12,27 @@
 - **A2** 启动时按 active preset 重放 — `8a75ca3`
 - **E1** 14 个 ReAct 工具参数对象化 — `80b7deb`
 - **B1** `provides` 声明/实际差异诊断 — `80b7deb`
+- **F1** release 诊断导出 + 诊断元数据 + builtin 索引守卫 — `e46779e`
 
-待办只剩：
+五张任务卡均已完成。剩余事项：
 
-| 未完成项 | 为什么还没做 | 风险 |
-|---|---|---|
-| F1 release 诊断导出/设置页 | debug 显式广播已可用；release 入口需要产品 UI 和导出策略 | 产品化尾项，无核心阻塞 |
-| 整合包设备冒烟 | 内置演示索引只有插件、没有 preset；AI 资源卡片需要登录/Key | 测试环境限制，不是代码阻塞 |
+| 事项 | 状态 |
+|---|---|
+| 真机整合包切换冒烟 | 内置演示索引没有 preset，需要真实索引或测试索引 |
+| AI 资源卡片交互 | 需要登录/API Key |
+| UI 安装跨进程事务 | 已做旧 APK 备份/恢复，但进程被杀时仍非跨进程事务 |
 
 ## 1. 工作流 DAG
 
 ```mermaid
 flowchart LR
   A1["A1 Materializer ✅ 80b7deb"] --> A2["A2 Startup replay ✅ 8a75ca3"]
-  A2 --> F1["F1 Diagnostics metadata / release export"]
+  A2 --> F1["F1 Diagnostics / release export ✅ e46779e"]
   E1["E1 Typed tool args ✅ 80b7deb"]
   B1["B1 provides diagnostics ✅ 80b7deb"]
 ```
 
-建议执行顺序：
-
-- **下一步**：F1（A2 已完成，startup 状态字段已稳定）。
+任务卡执行顺序已完成；剩余只有设备环境相关的冒烟补充。
 
 ## 2. A1：CompositionMaterializer ✅ 80b7deb
 
@@ -231,7 +231,7 @@ installAllWithDescriptors + PluginInstaller.restore()
 - 回调异常不影响卸载。
 - `HITA_API_VERSION` 递增，`api-abi.txt` 重生成，`verifyApiAbi` 通过。
 
-## 6. F1：诊断元数据与 release 导出
+## 6. F1：诊断元数据与 release 导出 ✅ e46779e
 
 ### 目标
 
@@ -272,7 +272,7 @@ installAllWithDescriptors + PluginInstaller.restore()
 每个任务单独发给 Dumate，附：
 
 ```text
-Baseline: 8a75ca3
+Baseline: e46779e
 Task: A1 / A2 / E1 / B1 / F1（只做一张卡）
 Read: docs/plans/2026-11-18-plugin-remaining-work.md
 Rule: 不改任务卡外文件；不执行 adb uninstall；不跳测试
@@ -280,7 +280,7 @@ Verify: 任务卡里的命令 + 相关单测
 Report: 改动文件、验证命令、失败证据、剩余风险
 ```
 
-当前只剩 F1：
+所有任务卡已完成：
 
-- 直接把 F1 卡片发给 Dumate。
-- 不要把已完成的 A1/A2/E1/B1 再次发给 Dumate。
+- 不要把 A1/A2/E1/B1/F1 再次发给 Dumate。
+- 如需继续，只补设备冒烟或新一轮审计发现。
