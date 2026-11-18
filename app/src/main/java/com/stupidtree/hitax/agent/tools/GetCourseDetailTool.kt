@@ -1,10 +1,12 @@
 package com.stupidtree.hitax.agent.tools
 
+import com.google.gson.JsonObject
 import com.stupidtree.hitax.agent.remote.AgentBackendClient
 
 class GetCourseDetailTool : ReActTool {
     override fun execute(input: ReActToolInput): String {
-        val courseCode = extractCourseCode(input.actionInput)
+        val courseCode = extractCourseCode(input.arguments)
+            ?: input.actionInput.trim().removeSurrounding("{", "}")
         if (courseCode.isBlank()) return "获取详情失败: 无法解析课程代码"
         return try {
             val response = AgentBackendClient.readCourseSync(courseCode)
@@ -15,8 +17,8 @@ class GetCourseDetailTool : ReActTool {
             val teacher = extractTeacherSummary(course)
             val markdown = extractMarkdown(course)
             val summary = valueOf(course, "summary", "description", "intro")
-            val focusQuery = extractFocusQuery(input.actionInput)
-            val charRange = extractCharRange(input.actionInput)
+            val focusQuery = extractFocusQuery(input.arguments)
+            val charRange = extractCharRange(input.arguments)
             buildString {
                 append("课程详情（")
                 append(if (courseName.isNotBlank()) courseName else courseCode)
@@ -55,40 +57,22 @@ class GetCourseDetailTool : ReActTool {
         }
     }
 
-    private fun extractCourseCode(actionInput: String): String {
-        listOf("course_code", "code", "param").forEach { key ->
-            val value = Regex(""""$key"\s*:\s*"([^"]+)"""").find(actionInput)?.groupValues?.getOrNull(1)?.trim()
-            if (!value.isNullOrBlank()) return value
-        }
-        return actionInput.trim().removeSurrounding("{", "}")
-    }
+    internal fun extractCourseCode(arguments: JsonObject): String? =
+        arguments.stringArg("course_code", "code", "param")
 
-    private fun extractFocusQuery(text: String): String {
-        listOf("query", "keyword", "topic", "course_name", "project", "item").forEach { key ->
-            val value = Regex(""""$key"\s*:\s*"([^"]+)"""").find(text)?.groupValues?.getOrNull(1)?.trim()
-            if (!value.isNullOrBlank()) return value
-        }
-        return ""
-    }
+    internal fun extractFocusQuery(arguments: JsonObject): String =
+        arguments.stringArg("query", "keyword", "topic", "course_name", "project", "item") ?: ""
 
-    private fun extractCharRange(actionInput: String): TextRange? {
-        val start = extractInt(actionInput, "start", "char_start", "offset", "from")
-        val end = extractInt(actionInput, "end", "char_end", "to")
-        val limit = extractInt(actionInput, "limit", "length")
+    internal fun extractCharRange(arguments: JsonObject): TextRange? {
+        val start = arguments.intArg("start", "char_start", "offset", "from")
+        val end = arguments.intArg("end", "char_end", "to")
+        val limit = arguments.intArg("limit", "length")
         return when {
             start != null && end != null -> TextRange(start, end)
             start != null && limit != null -> TextRange(start, start + limit)
             start != null -> TextRange(start, start + MAX_DETAIL_CHARS)
             else -> null
         }
-    }
-
-    private fun extractInt(text: String, vararg keys: String): Int? {
-        keys.forEach { key ->
-            val value = Regex(""""$key"\s*:\s*(\d+)"""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            if (value != null) return value
-        }
-        return null
     }
 
     private fun focusedSnippets(markdown: String, focusQuery: String): String {
@@ -127,7 +111,7 @@ class GetCourseDetailTool : ReActTool {
     private fun valueOf(map: Map<*, *>, vararg keys: String): String =
         keys.firstNotNullOfOrNull { key -> map[key]?.toString()?.trim()?.takeIf { it.isNotBlank() } }.orEmpty()
 
-    private data class TextRange(val start: Int, val end: Int)
+    internal data class TextRange(val start: Int, val end: Int)
 
     private companion object {
         const val MAX_DETAIL_CHARS = 4000

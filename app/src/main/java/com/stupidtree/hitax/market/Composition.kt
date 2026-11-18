@@ -1,5 +1,7 @@
 package com.stupidtree.hitax.market
 
+import java.io.File
+
 /** 组合条目的种类；id 只在同一种类内唯一。 */
 enum class CompositionKind { BUILTIN, DEX, UI }
 
@@ -242,6 +244,87 @@ sealed class CompositionAction {
     ) : CompositionAction()
 }
 
+/**
+ * materialize 阶段产出的 artifact：只包含 staged 文件，不含任何已安装状态。
+ *
+ * BUILTIN 没有 artifact，永远不经过 materializer。
+ */
+sealed interface PreparedArtifact {
+    val target: CompositionTarget
+
+    data class Ui(
+        val entry: UiMarketPlugin,
+        val file: File,
+        val sha256: String,
+    ) : PreparedArtifact {
+        override val target: CompositionTarget
+            get() = CompositionTarget(CompositionKind.UI, entry.id)
+    }
+
+    data class Dex(
+        val entry: MarketPlugin,
+        val stagedDex: File,
+    ) : PreparedArtifact {
+        override val target: CompositionTarget
+            get() = CompositionTarget(CompositionKind.DEX, entry.id)
+    }
+}
+
+/**
+ * 只负责把 Install 动作需要的东西下载、校验并落到 staging。
+ *
+ * 不卸载旧版本、不改 `installed.json` / `ui_plugins`；这些副作用留给 reconciler。
+ */
+interface CompositionMaterializer {
+    fun prepare(kind: CompositionKind, id: String): Result<PreparedArtifact>
+
+    /** 成功、失败、取消路径都必须调用，清空所有 staging 文件。 */
+    fun cleanup()
+}
+
+/** materialize 阶段的结果：按 target 索引已准备 artifact，并区分必选/可选失败。 */
+data class PreparedComposition(
+    val artifacts: Map<CompositionTarget, PreparedArtifact> = emptyMap(),
+    /** 原始失败原因；成功准备后用于让 executor 在 Install 时返回同样的错误。 */
+    val failures: Map<CompositionTarget, String> = emptyMap(),
+    val requiredFailures: List<String> = emptyList(),
+    val optionalFailures: List<String> = emptyList(),
+) {
+    val canReconcile: Boolean get() = requiredFailures.isEmpty()
+}
+
+/**
+ * 只准备 DEX/UI 的 Install 动作；BUILTIN 由 executor 直接处理。
+ *
+ * 必选失败会立即停止准备（不再浪费流量），可选失败只记录并继续。
+ */
+internal fun materializeInstalls(
+    actions: List<CompositionAction>,
+    materializer: CompositionMaterializer,
+): PreparedComposition {
+    val artifacts = linkedMapOf<CompositionTarget, PreparedArtifact>()
+    val failures = linkedMapOf<CompositionTarget, String>()
+    val requiredFailures = mutableListOf<String>()
+    val optionalFailures = mutableListOf<String>()
+
+    for (action in actions) {
+        if (action !is CompositionAction.Install) continue
+        if (action.kind == CompositionKind.BUILTIN) continue
+        val target = CompositionTarget(action.kind, action.id)
+        materializer.prepare(action.kind, action.id).fold(
+            onSuccess = { artifacts[target] = it },
+            onFailure = { error ->
+                val reason = error.message ?: "准备失败"
+                failures[target] = reason
+                val text = "${action.id}：$reason"
+                if (action.required) requiredFailures += text else optionalFailures += text
+            },
+        )
+        if (requiredFailures.isNotEmpty()) break
+    }
+    return PreparedComposition(artifacts, failures, requiredFailures, optionalFailures)
+}
+
 /** 执行副作用的最小接口；由 Android 侧适配到 installer / UiPluginManager / BuiltinPluginManager。 */
 interface CompositionExecutor {
     /** 返回是否需要重建界面。 */
@@ -327,6 +410,46 @@ object CompositionReconciler {
             }
         }
         return activations + disables
+    }
+
+    /**
+     * materialize -> reconcile 的完整入口。
+     *
+     * 必选 artifact 准备失败时不执行任何 executor 动作，现有组合（active preset、
+     * 已启用条目）保持原样；可选失败通过 executor 的 Install 返回错误，计入
+     * [CompositionReport.optionalFailures] 后继续对账。
+     */
+    fun executePrepared(
+        plan: CompositionPlan,
+        state: CompositionState,
+        materializer: CompositionMaterializer,
+        executor: CompositionExecutor,
+    ): CompositionReport {
+        try {
+            // 必选已被 USER/SAFETY 停用时不会安装任何东西，连准备都省掉。
+            if (plan.blockingRequiredDisabled().isNotEmpty()) {
+                return execute(plan, state, executor)
+            }
+            val prepared = materializeInstalls(actions(plan, state), materializer)
+            if (!prepared.canReconcile) {
+                return CompositionReport(
+                    installed = 0,
+                    enabled = 0,
+                    disabled = 0,
+                    skipped = plan.entries.size,
+                    failures = prepared.requiredFailures,
+                    optionalFailures = prepared.optionalFailures,
+                    reloadNeeded = false,
+                )
+            }
+            return execute(
+                plan = plan,
+                state = state,
+                executor = PrepareGuardExecutor(executor, prepared.failures),
+            )
+        } finally {
+            materializer.cleanup()
+        }
     }
 
     fun execute(
@@ -490,5 +613,31 @@ object CompositionReconciler {
         CompositionMissingReason.NotInBase -> "内置缺失"
         CompositionMissingReason.NotInstalled -> "未安装"
         CompositionMissingReason.NotInIndex -> "索引缺失"
+    }
+
+    /** 把准备阶段的失败还原成 Install 失败，避免 executor 去碰不存在的 artifact。 */
+    private class PrepareGuardExecutor(
+        private val delegate: CompositionExecutor,
+        private val failures: Map<CompositionTarget, String>,
+    ) : CompositionExecutor {
+        override fun install(kind: CompositionKind, id: String): Result<Boolean> {
+            failures[CompositionTarget(kind, id)]?.let { message ->
+                return Result.failure(IllegalStateException(message))
+            }
+            return delegate.install(kind, id)
+        }
+
+        override fun enable(kind: CompositionKind, id: String): Result<Boolean> =
+            delegate.enable(kind, id)
+
+        override fun disable(kind: CompositionKind, id: String): Result<Boolean> =
+            delegate.disable(kind, id)
+
+        override fun restore(
+            kind: CompositionKind,
+            id: String,
+            installed: Boolean,
+            enabled: Boolean,
+        ): Result<Boolean> = delegate.restore(kind, id, installed, enabled)
     }
 }

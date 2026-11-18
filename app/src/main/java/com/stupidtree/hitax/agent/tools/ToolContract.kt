@@ -1,5 +1,7 @@
 package com.stupidtree.hitax.agent.tools
 
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.stupidtree.hitax.agent.core.AgentTraceEvent
 import com.stupidtree.hitax.agent.model.AgentResourceCard
 
@@ -43,6 +45,8 @@ data class ToolCall(
     val name: String,
     val actionInput: String,
     val userMessage: String = "",
+    /** registry 一次性解析后的参数对象；保留 [actionInput] 仅用于展示与插件兼容。 */
+    val arguments: JsonObject = JsonObject(),
 )
 
 data class ToolExecution(
@@ -68,4 +72,54 @@ fun interface ToolGuard {
 
 fun interface ToolPostProcessor {
     fun process(call: ToolCall, result: ToolExecution): ToolExecution?
+}
+
+/**
+ * 从已解析参数里按顺序取第一个非空字符串。
+ * [keys] 同时包含规范名与历史别名，保持旧工具接受多种字段的行为。
+ */
+internal fun JsonObject.stringArg(vararg keys: String): String? {
+    for (key in keys) {
+        val element = get(key) ?: continue
+        if (element.isJsonNull || !element.isJsonPrimitive) continue
+        val primitive = element.asJsonPrimitive
+        if (!primitive.isString && !primitive.isNumber && !primitive.isBoolean) continue
+        val value = primitive.asString.trim()
+        if (value.isNotEmpty()) return value
+    }
+    return null
+}
+
+internal fun JsonObject.intArg(vararg keys: String): Int? {
+    for (key in keys) {
+        val value = numberArg(key) ?: continue
+        if (value % 1.0 == 0.0 && value >= Int.MIN_VALUE && value <= Int.MAX_VALUE) {
+            return value.toInt()
+        }
+    }
+    return null
+}
+
+private fun JsonObject.numberArg(key: String): Double? {
+    val element = get(key) ?: return null
+    if (element.isJsonNull || !element.isJsonPrimitive) return null
+    val primitive = element.asJsonPrimitive
+    return when {
+        primitive.isNumber -> primitive.asDouble
+        primitive.isString -> primitive.asString.trim().toDoubleOrNull()
+        else -> null
+    }
+}
+
+/** 把别名值补到规范名上，工具只需读取规范名。 */
+internal fun canonicalizeArguments(spec: ToolSpec, raw: JsonObject): JsonObject {
+    val result = JsonObject()
+    raw.entrySet().forEach { (key, value: JsonElement) -> result.add(key, value) }
+    spec.parameters.forEach { param ->
+        if (result.has(param.name)) return@forEach
+        param.aliases.firstOrNull { result.has(it) }?.let { alias ->
+            result.add(param.name, result.get(alias))
+        }
+    }
+    return result
 }

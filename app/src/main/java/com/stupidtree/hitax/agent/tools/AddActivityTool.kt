@@ -1,9 +1,9 @@
 package com.stupidtree.hitax.agent.tools
 
-import android.util.Log
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.stupidtree.hitax.HitaServices
 import com.stupidtree.hitax.data.model.timetable.EventItem
-import org.json.JSONObject
 import java.sql.Timestamp
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -11,7 +11,7 @@ import java.util.Locale
 
 class AddActivityTool : SuspendingReActTool {
     override suspend fun execute(input: ReActToolInput): String? {
-        val parsed = parseAddActivityInput(input.actionInput)
+        val parsed = parseAddActivityInput(input.arguments)
         val name = parsed.name ?: return "未找到活动信息"
         val fromMs = parsed.fromMs ?: return "未找到开始时间"
         val toMs = parsed.toMs ?: return "未找到结束时间"
@@ -41,32 +41,27 @@ class AddActivityTool : SuspendingReActTool {
 
     internal data class ParsedActivity(val name: String?, val fromMs: Long?, val toMs: Long?, val place: String)
 
-    internal fun parseAddActivityInput(actionInput: String): ParsedActivity {
-        val cleaned = actionInput.replace(Regex("""```(?:json)?\s*"""), "").replace("```", "").replace("`", "").trim()
-        try {
-            val json = JSONObject(cleaned)
-            val name = json.optString("name", "").takeIf { it.isNotBlank() }
-            val place = json.optString("place", "")
-            val dayOffset = json.optInt("day_offset", Int.MIN_VALUE)
-            val start = json.optString("start_time", "")
-            val end = json.optString("end_time", "")
-            if (name != null && dayOffset != Int.MIN_VALUE && start.isNotBlank() && end.isNotBlank()) {
-                val from = parseRelativeTime(dayOffset, start)
-                val to = parseRelativeTime(dayOffset, end)
-                if (from != null && to != null) return ParsedActivity(name, from, to, place)
-            }
-            val from = parseTimeValue(json.opt("from"))
-            val to = parseTimeValue(json.opt("to"))
-            if (name != null && from != null && to != null) return ParsedActivity(name, from, to, place)
-        } catch (error: Exception) {
-            Log.w("AddActivityTool", "parse failed", error)
+    internal fun parseAddActivityInput(arguments: JsonObject): ParsedActivity {
+        val name = arguments.stringArg("name")
+        val place = arguments.stringArg("place") ?: ""
+        val dayOffset = arguments.intArg("day_offset")
+        val start = arguments.stringArg("start_time")
+        val end = arguments.stringArg("end_time")
+        if (name != null && dayOffset != null && start != null && end != null) {
+            val from = parseRelativeTime(dayOffset, start)
+            val to = parseRelativeTime(dayOffset, end)
+            if (from != null && to != null) return ParsedActivity(name, from, to, place)
         }
+        val from = parseTimeValue(arguments.get("from"))
+        val to = parseTimeValue(arguments.get("to"))
+        if (name != null && from != null && to != null) return ParsedActivity(name, from, to, place)
         return ParsedActivity(null, null, null, "")
     }
 
-    private fun parseTimeValue(value: Any?): Long? = when (value) {
-        is Number -> value.toLong()
-        is String -> parseTimestampOrIso(value)
+    private fun parseTimeValue(value: JsonElement?): Long? = when {
+        value == null || value.isJsonNull || !value.isJsonPrimitive -> null
+        value.asJsonPrimitive.isNumber -> value.asLong
+        value.asJsonPrimitive.isString -> parseTimestampOrIso(value.asString)
         else -> null
     }
 

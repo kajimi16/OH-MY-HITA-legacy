@@ -45,6 +45,9 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
 
     private val uiPluginManager = UiPluginManager(application)
 
+    /** 界面插件 prepare 阶段的 staging 根目录；cleanup 时整体删除。 */
+    private val uiStagingRoot = File(application.cacheDir, "ui-staging")
+
     /** 运行时界面插件（Compose 容器，独立 APK）。 */
     val uiPlugins = MutableLiveData<List<InstalledUiPlugin>>(emptyList())
 
@@ -300,12 +303,10 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    private fun installUiBlocking(
-        entry: UiMarketPlugin,
-        indexBase: String?,
-        reloadOnMainTab: Boolean = true,
-    ): InstalledUiPlugin {
-        val app = getApplication<Application>()
+    /**
+     * 准备阶段：下载界面插件 APK 到 staging 并校验 sha256；不触碰已安装版本。
+     */
+    private fun prepareUi(entry: UiMarketPlugin, indexBase: String?): File {
         require(entry.sha256.matches(Regex("^[a-fA-F0-9]{64}$"))) {
             "索引缺少有效的 sha256，拒绝安装"
         }
@@ -313,15 +314,47 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
         require(minApi <= HITA_API_VERSION) {
             "插件需要宿主 API $minApi，当前 ${HITA_API_VERSION}"
         }
-        val file = java.io.File(app.cacheDir, "ui-${entry.id}.apk")
-        PluginFetch.download(entry.url, indexBase, file)
+        val dir = File(uiStagingRoot, entry.id)
+        dir.deleteRecursively()
+        dir.mkdirs()
+        val file = File(dir, "plugin.apk")
+        try {
+            PluginFetch.download(entry.url, indexBase, file)
+            val actual = uiPluginManager.sha256Of(file)
+            require(actual.equals(entry.sha256, ignoreCase = true)) {
+                "sha256 校验失败：期望 ${entry.sha256}，实际 $actual"
+            }
+            return file
+        } catch (t: Throwable) {
+            dir.deleteRecursively()
+            throw t
+        }
+    }
+
+    /** 把已准备好的文件装进 ui_plugins 并记录来源；不访问网络。 */
+    private fun attachUi(
+        entry: UiMarketPlugin,
+        file: File,
+        reloadOnMainTab: Boolean = true,
+        sourceUrl: String = activeSource().url,
+    ): InstalledUiPlugin {
+        val installed = uiPluginManager.installFile(file, entry.sha256)
+        MarketSources.recordInstall(ctx(), installed.id, sourceUrl)
+        if (reloadOnMainTab && hasMainTab(installed)) reloadUi.postValue(true)
+        return installed
+    }
+
+    /** 兼容包装：prepare + attach，并清理 staging。 */
+    private fun installUiBlocking(
+        entry: UiMarketPlugin,
+        indexBase: String?,
+        reloadOnMainTab: Boolean = true,
+    ): InstalledUiPlugin {
+        val file = prepareUi(entry, indexBase)
         return try {
-            val installed = uiPluginManager.installFile(file, entry.sha256)
-            MarketSources.recordInstall(ctx(), installed.id, activeSource().url)
-            if (reloadOnMainTab && hasMainTab(installed)) reloadUi.postValue(true)
-            installed
+            attachUi(entry, file, reloadOnMainTab)
         } finally {
-            file.delete()
+            file.parentFile?.deleteRecursively()
         }
     }
 
@@ -436,26 +469,55 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 ),
             )
             CompositionStore.record(ctx(), plan, state)
+
+            // 准备阶段只下载/校验/落 staging；任何必选失败都在 reconcile 之前中止。
+            val artifacts = mutableMapOf<CompositionTarget, PreparedArtifact>()
+            val materializer = object : CompositionMaterializer {
+                override fun prepare(
+                    kind: CompositionKind,
+                    id: String,
+                ): Result<PreparedArtifact> = runCatching {
+                    when (kind) {
+                        CompositionKind.UI -> {
+                            val entry = ui[id] ?: error("索引缺失")
+                            val file = prepareUi(entry, lastIndexBase)
+                            PreparedArtifact.Ui(entry, file, entry.sha256)
+                        }
+                        CompositionKind.DEX -> {
+                            val entry = dex[id]?.entry ?: error("索引缺失")
+                            if (!trustStore.isVerified(entry.id)) {
+                                error("未受信任，需手动安装")
+                            }
+                            installer.prepare(entry, lastIndexBase)
+                        }
+                        CompositionKind.BUILTIN -> error("内置插件不需要 artifact")
+                    }
+                }.onSuccess { artifacts[CompositionTarget(kind, id)] = it }
+
+                override fun cleanup() {
+                    runCatching { installer.cleanupStaging() }
+                    uiStagingRoot.deleteRecursively()
+                    artifacts.clear()
+                }
+            }
+
             val compositionExecutor = object : CompositionExecutor {
                 override fun install(kind: CompositionKind, id: String): Result<Boolean> {
                     return when (kind) {
                         CompositionKind.UI -> {
-                            val entry = ui[id]
-                                ?: return Result.failure(IllegalStateException("索引缺失"))
+                            val artifact = artifacts[CompositionTarget(kind, id)]
+                                as? PreparedArtifact.Ui
+                                ?: return Result.failure(IllegalStateException("界面插件未准备"))
                             runCatching {
-                                installUiBlocking(entry, lastIndexBase, reloadOnMainTab = false)
+                                attachUi(artifact.entry, artifact.file, reloadOnMainTab = false)
                             }.map { hasMainTab(it) }
                         }
                         CompositionKind.DEX -> {
-                            val entry = dex[id]?.entry
-                                ?: return Result.failure(IllegalStateException("索引缺失"))
-                            if (!trustStore.isVerified(entry.id)) {
-                                return Result.failure(
-                                    IllegalStateException("未受信任，需手动安装"),
-                                )
-                            }
+                            val artifact = artifacts[CompositionTarget(kind, id)]
+                                as? PreparedArtifact.Dex
+                                ?: return Result.failure(IllegalStateException("插件未准备"))
                             val before = navIds()
-                            runCatching { installDexBlocking(entry); navIds() != before }
+                            runCatching { installer.attach(artifact); navIds() != before }
                         }
                         CompositionKind.BUILTIN -> runCatching {
                             builtin.setEnabled(id, true).getOrThrow()
@@ -537,9 +599,10 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                     CompositionKind.BUILTIN -> builtin.setEnabled(id, false).map { true }
                 }
             }
-            val report = CompositionReconciler.execute(
+            val report = CompositionReconciler.executePrepared(
                 plan = plan.forPresetApplication(),
                 state = state,
+                materializer = materializer,
                 executor = compositionExecutor,
             )
             CompositionStore.recordResult(ctx(), plan, state, report)
@@ -602,16 +665,11 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                     ?: return@forEach
                 if (!PluginVersion.isNewer(entry.version, installed.version)) return@forEach
                 runCatching {
-                    val minApi = entry.minHostApi ?: 1
-                    require(minApi <= HITA_API_VERSION) {
-                        "插件需要宿主 API $minApi，当前 ${HITA_API_VERSION}"
-                    }
-                    val file = java.io.File(app.cacheDir, "ui-${entry.id}.apk")
-                    PluginFetch.download(entry.url, source.url, file)
+                    val file = prepareUi(entry, source.url)
                     try {
-                        uiPluginManager.installFile(file, entry.sha256)
+                        attachUi(entry, file, reloadOnMainTab = false, sourceUrl = source.url)
                     } finally {
-                        file.delete()
+                        file.parentFile?.deleteRecursively()
                     }
                 }.onSuccess { ok++ }.onFailure { fail++ }
             }

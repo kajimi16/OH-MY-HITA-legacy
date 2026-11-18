@@ -59,6 +59,19 @@ data class PluginHookFailure(
 )
 
 /**
+ * 插件在 `PluginDescriptor.provides` 里声明了某个服务，但该服务当前不由它实际提供。
+ *
+ * [actualProvider] 为当前的提供者（插件 id 或 [PluginHost.HOST_PROVIDER]）；
+ * 没有任何提供者时为 null。该信息只用于诊断：`provides` 只是清单提示，
+ * 不参与激活、等待或冲突裁决。
+ */
+data class PluginDeclaredProvides(
+    val pluginId: String,
+    val service: String,
+    val actualProvider: String?,
+)
+
+/**
  * 内核当前状态的一次不可变快照。
  *
  * `waiting` / `conflicts` 在依赖声明落地后填充；当前先保留稳定字段，
@@ -73,4 +86,6 @@ data class PluginDiagnostics(
     val services: List<PluginServiceBinding>,
     val hookFailures: List<PluginHookFailure> = emptyList(),
     val toolConflicts: List<PluginToolConflict> = emptyList(),
+    /** 已安装插件的 `provides` 声明与实际提供者不一致的条目；不影响激活。 */
+    val declaredProvides: List<PluginDeclaredProvides> = emptyList(),
 )

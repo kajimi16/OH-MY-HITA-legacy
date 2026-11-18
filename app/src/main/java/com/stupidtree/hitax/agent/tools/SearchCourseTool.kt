@@ -1,11 +1,13 @@
 package com.stupidtree.hitax.agent.tools
 
+import com.google.gson.JsonObject
 import com.stupidtree.hitax.agent.model.AgentResourceCard
 import com.stupidtree.hitax.agent.remote.AgentBackendClient
 
 class SearchCourseTool : ReActTool {
     override fun execute(input: ReActToolInput): String {
-        val keyword = extractKeyword(input.actionInput)
+        val keyword = extractKeyword(input.arguments)
+            ?: input.actionInput.trim().removeSurrounding("{", "}")
         if (keyword.isBlank()) return "搜索失败: 无法解析查询条件"
         return try {
             val response = AgentBackendClient.searchCoursesSync(keyword)
@@ -32,13 +34,8 @@ class SearchCourseTool : ReActTool {
         }
     }
 
-    private fun extractKeyword(actionInput: String): String {
-        listOf("query", "keyword", "param").forEach { key ->
-            val value = Regex(""""$key"\s*:\s*"([^"]+)"""").find(actionInput)?.groupValues?.getOrNull(1)?.trim()
-            if (!value.isNullOrBlank()) return value
-        }
-        return actionInput.trim().removeSurrounding("{", "}")
-    }
+    internal fun extractKeyword(arguments: JsonObject): String? =
+        arguments.stringArg("query", "keyword", "param")
 
     private fun extractResults(raw: Any?): List<Map<*, *>> = when (raw) {
         is List<*> -> raw.filterIsInstance<Map<*, *>>()

@@ -192,6 +192,7 @@ class PluginHost(
         try {
             plugin.install(scope)
             descriptors[plugin.id] = descriptor
+            logDeclaredProvideMismatches(plugin.id, descriptor)
             failures.remove(plugin.id)
             failurePhases.remove(plugin.id)
             logger("plugin installed: ${plugin.id}", null)
@@ -445,7 +446,37 @@ class PluginHost(
             .sortedBy { it.service },
         hookFailures = synchronized(hookLock) { hookFailures.toList() },
         toolConflicts = synchronized(toolLock) { toolConflicts.toList() },
+        declaredProvides = declaredProvideMismatches(),
     )
+
+    /**
+     * `provides` 只是清单提示：实际提供者以 `serviceProviders` 为准。
+     * 这里只报告已安装插件的声明与实际不一致的条目，按插件 id、服务名稳定排序。
+     */
+    private fun declaredProvideMismatches(): List<PluginDeclaredProvides> =
+        installedPlugins.keys
+            .sorted()
+            .flatMap { id ->
+                descriptors[id]?.provides.orEmpty()
+                    .sorted()
+                    .mapNotNull { service ->
+                        val actual = serviceProviders[service]
+                        if (actual == id) null
+                        else PluginDeclaredProvides(id, service, actual)
+                    }
+            }
+
+    private fun logDeclaredProvideMismatches(pluginId: String, descriptor: PluginDescriptor) {
+        descriptor.provides.sorted().forEach { service ->
+            val actual = serviceProviders[service]
+            if (actual != pluginId) {
+                logger(
+                    "plugin $pluginId declares '$service' but actual provider is ${actual ?: "<none>"}",
+                    null,
+                )
+            }
+        }
+    }
 
     /**
      * 单个插件的注册作用域。所有 undo 都是幂等的移除/恢复动作，
