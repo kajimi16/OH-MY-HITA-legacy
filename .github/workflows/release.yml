@@ -55,6 +55,12 @@ jobs:
         id: ver
         run: |
           INPUT_VERSION="${{ inputs.version }}"
+          # 需要 minor/major 版本时，在本次发布中修改 release-version.txt；
+          # 文件相对上一个 tag 没变化时，保持原来的 patch+1 行为。
+          FILE_VERSION=""
+          if [ -f release-version.txt ]; then
+            FILE_VERSION="$(tr -d '[:space:]' < release-version.txt)"
+          fi
           if [ -n "$INPUT_VERSION" ]; then
             # 手动指定版本：不依赖先推 tag，发布时 gh release create 会自动建 tag
             VERSION="$INPUT_VERSION"
@@ -65,11 +71,19 @@ jobs:
             PREV="$(git tag -l 'v*' --sort=-v:refname | grep -vx "v${VERSION}" | head -n1)"
           else
             PREV="$(git tag -l 'v*' --sort=-v:refname | head -n1)"
-            LATEST="${PREV#v}"
-            [ -z "$LATEST" ] && LATEST="0.0.0"
-            IFS=. read -r MA MI PA <<< "$LATEST"
-            VERSION="$MA.$MI.$((PA+1))"
+            if [ -n "$FILE_VERSION" ] && { [ -z "$PREV" ] || ! git diff --quiet "$PREV" HEAD -- release-version.txt; }; then
+              VERSION="$FILE_VERSION"
+            else
+              LATEST="${PREV#v}"
+              [ -z "$LATEST" ] && LATEST="0.0.0"
+              IFS=. read -r MA MI PA <<< "$LATEST"
+              VERSION="$MA.$MI.$((PA+1))"
+            fi
           fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "invalid release version: $VERSION" >&2
+            exit 1
+          }
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "prev=$PREV" >> "$GITHUB_OUTPUT"
           # versionCode 用时间戳：与 dev 构建共享同一条单调序列。
@@ -92,11 +106,14 @@ jobs:
           RELEASE_KEY_PASSWORD=$KEY_PASSWORD
           EOF
 
-      - name: Run unit tests
+      - name: Run release gates
         run: >
-          ./gradlew :api:testDebugUnitTest :app:testDebugUnitTest :kernel:testDebugUnitTest
-          :plugin-hita:testDebugUnitTest :component:testDebugUnitTest
-          :style:testDebugUnitTest
+          ./gradlew :verifyMarketIndex :verifyPluginBoundary :verifyApiAbi
+          :api:testDebugUnitTest :kernel:testDebugUnitTest :app:testDebugUnitTest
+          :plugin-hita:testDebugUnitTest :plugin-eas:testDebugUnitTest
+          :plugin-resource:testDebugUnitTest :theta:testDebugUnitTest
+          :component:testDebugUnitTest :style:testDebugUnitTest :user:testDebugUnitTest
+          :app:lintDebug
 
       - name: Build APK
         run: |

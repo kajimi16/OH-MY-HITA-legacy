@@ -274,7 +274,7 @@
     <string name="score_reminder_subtitle">有新成绩时提醒我</string>
     <string name="exam_time">时间</string>
     <string name="exam_type">类型</string>
-    <string name="exam_memo_hint">暂无官方考试接口，本页可作为考试备忘录使用，点击此处可新增</string>
+    <string name="exam_memo_hint">考试数据来自教务接口；也可点击此处新增考试备忘录</string>
     <string name="exam_memo_add_hint">这是备忘录，提交后保存在本机。长按条目可删除。</string>
     <string name="exam_memo_title_hint">考试/课程名称（必填）</string>
     <string name="exam_memo_date_hint">日期（如 2026-03-10）</string>

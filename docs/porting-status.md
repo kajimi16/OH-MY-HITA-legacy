@@ -5,8 +5,8 @@
 ## 分支
 
 - 分支：`feat/hita-android-shell`
-- 基线：`master` / `0.6.2`，未合并、未发布
-- HITA_Android Shell 未接入线上预设
+- 基线：已合并 `origin/master` / `v0.6.9`；发布候选 `0.7.0`
+- HITA_Android Shell 为预览版，未接入线上预设
 
 ## HITA-L 1.5.3
 
@@ -83,10 +83,9 @@ Shell 入口：
 
 ## 下一步顺序
 
-1. 移植上游 AgentChat UI
-2. 补剩余 10 个工具
-3. 五页截图验收
-4. 才考虑把 `hita-android-3.1.2` 切到 Shell
+1. 补助手附件上传与资源卡片交互
+2. 降低五页截图残差，重新验收
+3. 才考虑把 `hita-android-3.1.2` 切到 Shell
 
 ## 运行时证据
 
