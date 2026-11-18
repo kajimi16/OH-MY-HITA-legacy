@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.annotation.WorkerThread
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.stupidtree.stupiduser.data.repository.LocalUserRepository
 import com.stupidtree.sync.StupidSync
 import com.stupidtree.hita.api.EasService
@@ -508,23 +509,34 @@ class HApplication : Application() {
 
 
 
-    /** 供 debug 广播导出内核诊断；同时写 logcat 与 filesDir/diagnostics/plugins.json。 */
+    /** 供 debug 广播导出内核诊断；同时写 logcat 与 filesDir/diagnostics/。 */
     fun dumpPluginDiagnostics(): String {
-        val gson = com.google.gson.Gson()
-        val json = gson.toJson(pluginHost.diagnostics())
+        val files = buildDiagnosticsExport()
         val dir = java.io.File(filesDir, "diagnostics").apply { mkdirs() }
-        java.io.File(dir, "plugins.json").writeText(json)
-        val composition = com.stupidtree.hitax.market.CompositionStore.read(this)
-        val combined = com.google.gson.JsonObject().apply {
-            add("plugins", gson.toJsonTree(pluginHost.diagnostics()))
-            if (!composition.isNullOrBlank()) {
-                add("composition", com.google.gson.JsonParser.parseString(composition))
-            }
-        }.toString()
-        java.io.File(dir, "diagnostics.json").writeText(combined)
+        files.forEach { (name, json) -> java.io.File(dir, name).writeText(json) }
+        // 旧 debug 脚本仍读 plugins.json：保留只含内核快照的文件。
+        java.io.File(dir, "plugins.json").writeText(Gson().toJson(pluginHost.diagnostics()))
+        val combined = files.getValue(DIAGNOSTICS_EXPORT_FILE)
         android.util.Log.i(TAG, "plugin diagnostics: $combined")
         return combined
     }
+
+    /**
+     * release 诊断导出：生成 `diagnostics.json` 与 `composition.json` 的文本。
+     *
+     * 不依赖 debug 广播，也不预写应用私有目录——调用方把结果写到用户选择的位置。
+     */
+    fun buildDiagnosticsExport(): Map<String, String> = pluginDiagnosticsExport(
+        diagnostics = pluginHost.diagnostics(),
+        composition = runCatching {
+            com.stupidtree.hitax.market.CompositionStore.read(this)
+                ?.let { JsonParser.parseString(it) as? JsonObject }
+        }.getOrNull(),
+        exportedAt = System.currentTimeMillis(),
+        appVersionName = runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrNull(),
+    )
 
     /** 最近一次 applyPreset 的 desired/actual 快照；没有应用过整合包时返回空。 */
     fun dumpCompositionDiagnostics(): String {
@@ -537,4 +549,45 @@ class HApplication : Application() {
     companion object {
         private const val TAG = "PluginHost"
     }
+}
+
+/** release 诊断导出包里 diagnostics 文件名。 */
+internal const val DIAGNOSTICS_EXPORT_FILE = "diagnostics.json"
+
+/** release 诊断导出包里 composition 文件名。 */
+internal const val COMPOSITION_EXPORT_FILE = "composition.json"
+
+private const val DIAGNOSTICS_EXPORT_SCHEMA = 1
+
+/**
+ * 生成 release 诊断导出的两个 JSON 文本。纯函数：不碰文件系统与 Android API，
+ * 因此可以在 JVM 单测里确认输出可被 `json.load` 解析。
+ *
+ * `diagnostics.json` 包含插件快照（含 origin/version/requires/provides）与内嵌的组合快照；
+ * `composition.json` 是同一份组合快照的独立副本，没有组合时仍是可解析对象。
+ */
+internal fun pluginDiagnosticsExport(
+    diagnostics: com.stupidtree.hita.kernel.PluginDiagnostics,
+    composition: JsonObject?,
+    exportedAt: Long,
+    appVersionName: String?,
+    hostApi: Int = com.stupidtree.hita.api.HITA_API_VERSION,
+): Map<String, String> {
+    val fallbackComposition = JsonObject().apply {
+        addProperty("present", false)
+        addProperty("note", "没有已应用的整合包或组合快照")
+    }
+    val compositionJson = (composition ?: fallbackComposition).toString()
+    val diagnosticsJson = JsonObject().apply {
+        addProperty("schema", DIAGNOSTICS_EXPORT_SCHEMA)
+        addProperty("exportedAt", exportedAt)
+        if (appVersionName != null) addProperty("appVersion", appVersionName)
+        addProperty("hostApi", hostApi)
+        add("plugins", Gson().toJsonTree(diagnostics))
+        add("composition", JsonParser.parseString(compositionJson))
+    }.toString()
+    return mapOf(
+        DIAGNOSTICS_EXPORT_FILE to diagnosticsJson,
+        COMPOSITION_EXPORT_FILE to compositionJson,
+    )
 }

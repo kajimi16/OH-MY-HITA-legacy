@@ -418,7 +418,17 @@ class PluginHost(
     /** 当前内核状态的稳定快照；字段顺序不依赖 HashMap 遍历顺序。 */
     fun diagnostics(): PluginDiagnostics = PluginDiagnostics(
         installed = installedPlugins.entries
-            .map { (id, plugin) -> PluginSnapshot(id, plugin.requiresApi) }
+            .map { (id, plugin) ->
+                val descriptor = descriptors[id]
+                PluginSnapshot(
+                    id = id,
+                    requiresApi = plugin.requiresApi,
+                    origin = descriptor?.origin ?: PluginOrigin.UNKNOWN,
+                    version = descriptor?.version,
+                    requires = descriptor?.requires.orEmpty().sorted(),
+                    provides = descriptor?.provides.orEmpty().sorted(),
+                )
+            }
             .sortedBy { it.id },
         failed = failures.entries
             .map { (id, error) ->

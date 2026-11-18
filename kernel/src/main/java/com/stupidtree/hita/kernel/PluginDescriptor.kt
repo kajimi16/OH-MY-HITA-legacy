@@ -14,12 +14,15 @@ enum class PluginOrigin { BUILTIN, DEX, UNKNOWN }
  * [provides] 只是清单提示，**不参与**激活、等待或冲突裁决；实际可用服务只由
  * [PluginContext.provide] 注册的结果决定。声明与实际提供不一致时，
  * [PluginDiagnostics.declaredProvides] 会记录差异，便于发现元数据错误。
+ *
+ * [version] 只用于诊断展示；`Plugin` 接口不要求版本号，旧清单/旧插件按 null 处理。
  */
 data class PluginDescriptor(
     val id: String,
     val requires: Set<String> = emptySet(),
     val provides: Set<String> = emptySet(),
     val origin: PluginOrigin = PluginOrigin.UNKNOWN,
+    val version: String? = null,
 )
 
 /** 一次带声明的安装请求。 */

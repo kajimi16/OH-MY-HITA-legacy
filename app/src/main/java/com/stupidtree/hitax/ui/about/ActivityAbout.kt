@@ -7,10 +7,12 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.text.Html
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import com.stupidtree.component.data.DataState
+import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.R
 import com.stupidtree.hitax.databinding.ActivityAboutBinding
 import com.stupidtree.hitax.utils.ActivityUtils
@@ -37,6 +39,10 @@ class ActivityAbout: BaseActivity<AboutViewModel,ActivityAboutBinding>() {
              UserAgreementDialog().show(
                  supportFragmentManager,"a"
              )
+        }
+        binding.exportDiagnostics.setOnClickListener {
+            it.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+            pickExportDirectory()
         }
         binding.check.setOnClickListener {
             it.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
@@ -86,6 +92,80 @@ class ActivityAbout: BaseActivity<AboutViewModel,ActivityAboutBinding>() {
         refresh()
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_EXPORT_DIAGNOSTICS) return
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            Toast.makeText(this, "已取消导出", Toast.LENGTH_SHORT).show()
+            return
+        }
+        writeDiagnosticsToTree(uri)
+    }
+
+    /** 让用户选一个目录；没有文档选择器时退回应用外部目录。 */
+    private fun pickExportDirectory() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, REQUEST_EXPORT_DIAGNOSTICS)
+        } catch (t: Throwable) {
+            writeDiagnosticsToDirectory(getExternalFilesDir(null) ?: filesDir)
+        }
+    }
+
+    private fun exportFiles(): Map<String, String>? {
+        val app = application as? HApplication
+        val files = app?.let { runCatching { it.buildDiagnosticsExport() }.getOrNull() }
+        if (files == null) {
+            Toast.makeText(this, "导出失败：无法生成诊断内容", Toast.LENGTH_LONG).show()
+        }
+        return files
+    }
+
+    private fun writeDiagnosticsToTree(treeUri: Uri) {
+        val files = exportFiles() ?: return
+        try {
+            val parent = DocumentsContract.buildDocumentUriUsingTree(
+                treeUri,
+                DocumentsContract.getTreeDocumentId(treeUri),
+            )
+            files.forEach { (name, json) ->
+                val document = DocumentsContract.createDocument(
+                    contentResolver, parent, "application/json", name,
+                ) ?: error("无法创建 $name")
+                contentResolver.openOutputStream(document)?.use { output ->
+                    output.write(json.toByteArray(Charsets.UTF_8))
+                } ?: error("无法写入 $name")
+            }
+            Toast.makeText(this, "已导出 ${files.keys.joinToString("、")}", Toast.LENGTH_LONG).show()
+        } catch (t: Throwable) {
+            Toast.makeText(
+                this,
+                "导出失败：${t.message ?: t.javaClass.simpleName}",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
+    private fun writeDiagnosticsToDirectory(base: java.io.File) {
+        val files = exportFiles() ?: return
+        runCatching {
+            val dir = java.io.File(base, "diagnostics").apply { mkdirs() }
+            files.forEach { (name, json) -> java.io.File(dir, name).writeText(json) }
+            dir
+        }.onSuccess { dir ->
+            Toast.makeText(this, "已导出到 ${dir.absolutePath}", Toast.LENGTH_LONG).show()
+        }.onFailure { t ->
+            Toast.makeText(
+                this,
+                "导出失败：${t.message ?: t.javaClass.simpleName}",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
+
     @SuppressLint("SetTextI18n")
     fun refresh(){
         var packageInfo: PackageInfo? = null
@@ -112,5 +192,10 @@ class ActivityAbout: BaseActivity<AboutViewModel,ActivityAboutBinding>() {
 
     override fun getViewModelClass(): Class<AboutViewModel> {
         return AboutViewModel::class.java
+    }
+
+    private companion object {
+        /** 导出插件诊断时选择目标目录的请求码。 */
+        const val REQUEST_EXPORT_DIAGNOSTICS = 0x0D1A
     }
 }

@@ -24,6 +24,55 @@ class PluginDiagnosticsTest {
     }
 
     @Test
+    fun installedSnapshotsCarryDescriptorMetadataInStableOrder() {
+        val host = newHost()
+        host.provideGlobal(ServiceKey<String>("svc.a"), "a")
+        host.provideGlobal(ServiceKey<String>("svc.b"), "b")
+        host.install(
+            object : Plugin {
+                override val id: String = "zeta"
+                override val requiresApi: Int = 7
+                override fun install(ctx: PluginContext) = Unit
+            },
+            PluginDescriptor(
+                id = "zeta",
+                requires = setOf("svc.b", "svc.a"),
+                provides = setOf("svc.z", "svc.y"),
+                origin = PluginOrigin.BUILTIN,
+                version = "1.2.3",
+            ),
+        )
+        host.install(TestPlugin("alpha"))
+
+        val installed = host.diagnostics().installed
+
+        assertEquals(listOf("alpha", "zeta"), installed.map { it.id })
+        assertEquals(PluginSnapshot("alpha", 1), installed[0])
+        assertEquals(
+            PluginSnapshot(
+                id = "zeta",
+                requiresApi = 7,
+                origin = PluginOrigin.BUILTIN,
+                version = "1.2.3",
+                requires = listOf("svc.a", "svc.b"),
+                provides = listOf("svc.y", "svc.z"),
+            ),
+            installed[1],
+        )
+    }
+
+    @Test
+    fun snapshotFallsBackToUnknownOriginWhenNoDescriptorWasGiven() {
+        val host = newHost()
+        host.install(TestPlugin("plain"))
+
+        assertEquals(
+            PluginSnapshot("plain", 1, PluginOrigin.UNKNOWN, null, emptyList(), emptyList()),
+            host.diagnostics().installed.single(),
+        )
+    }
+
+    @Test
     fun reportsInstalledPluginsAndServiceOwnersInStableOrder() {
         val host = newHost()
         val globalKey = ServiceKey<String>("global.service")
