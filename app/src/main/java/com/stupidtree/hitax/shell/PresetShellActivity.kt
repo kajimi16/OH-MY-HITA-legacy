@@ -575,7 +575,7 @@ private fun MorePage(service: TimetableService?) {
                         modifier = Modifier.size(24.dp),
                     )
                 }
-                Column(Modifier.padding(start = 14.dp)) {
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(userName ?: "未登录教务", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                     Text(
                         if (userName == null) "点击进行教务登录" else "已连接教务",
@@ -583,6 +583,12 @@ private fun MorePage(service: TimetableService?) {
                         fontSize = 12.sp,
                     )
                 }
+                androidx.compose.material3.Icon(
+                    androidx.compose.material.icons.Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color(0xFF9CA3AF),
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -606,8 +612,8 @@ private fun MorePage(service: TimetableService?) {
                     )
                 }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                    Text("课表管理", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-                    Text("共${timetableCount ?: 0}个课表", color = Color(0xFF6B7280), fontSize = 12.sp)
+                    Text("课表管理", color = Color(0xFF6B7280), fontSize = 12.sp)
+                    Text("共${timetableCount ?: 0}个课表", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                 }
                 androidx.compose.material3.Icon(
                     androidx.compose.material.icons.Icons.Default.ChevronRight,
@@ -620,7 +626,10 @@ private fun MorePage(service: TimetableService?) {
         Spacer(Modifier.height(26.dp))
         MoreGroup("教务功能") {
             MoreRow("考试", icon = Icons.Default.CalendarToday) { open("com.stupidtree.hitax.ui.eas.exam.ExamActivity") }
-            MoreRow("成绩管理", "个人成绩明细 · 分项得分 · 权重折算", Icons.Default.Assessment) {
+            MoreRow("成绩管理", icon = Icons.Default.Assessment) {
+                open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
+            }
+            MoreRow("个人成绩明细", "成绩状态 · 分项得分 · 权重折算", Icons.Default.Assessment) {
                 open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
             }
             MoreRow("空教室", icon = Icons.Default.MeetingRoom) { open("com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomActivity") }
