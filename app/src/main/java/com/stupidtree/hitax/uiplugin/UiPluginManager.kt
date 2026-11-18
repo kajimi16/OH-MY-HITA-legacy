@@ -177,13 +177,8 @@ class UiPluginManager(private val context: Context) {
         val staging = File(dir, "plugin-new.apk")
         file.copyTo(staging, overwrite = true)
         require(sha256(staging) == actual) { "复制后校验失败" }
-
-        val plugin = loadClass(staging, meta.entryClass)
-        require(plugin is ComposeUiPlugin) { "入口类未实现 ComposeUiPlugin" }
-        require(plugin.id == meta.id) { "id 不一致：${plugin.id} vs ${meta.id}" }
-        require(plugin.requiresApi <= HITA_API_VERSION) {
-            "插件需要 api ${plugin.requiresApi}，当前宿主 $HITA_API_VERSION"
-        }
+        // Android 14+ 要求动态加载的 dex/apk 不可写；在类加载前就收紧权限。
+        staging.setReadOnly()
 
         // 替换前保留旧 APK；后续任一步失败都恢复旧文件与旧记录，避免“新版本没装成、旧版本也没了”。
         val apk = File(dir, "plugin.apk")
@@ -197,6 +192,13 @@ class UiPluginManager(private val context: Context) {
             // Android 14 起，动态加载的代码文件必须是只读的
             apk.setReadOnly()
             require(sha256(apk) == actual) { "落盘校验失败" }
+            // 必须从最终路径加载：staging 会被 rename，旧 DexClassLoader 的路径随后失效。
+            val plugin = loadClass(apk, meta.entryClass)
+            require(plugin is ComposeUiPlugin) { "入口类未实现 ComposeUiPlugin" }
+            require(plugin.id == meta.id) { "id 不一致：${plugin.id} vs ${meta.id}" }
+            require(plugin.requiresApi <= HITA_API_VERSION) {
+                "插件需要 api ${plugin.requiresApi}，当前宿主 $HITA_API_VERSION"
+            }
 
             val installed = InstalledUiPlugin(
                 id = meta.id,
