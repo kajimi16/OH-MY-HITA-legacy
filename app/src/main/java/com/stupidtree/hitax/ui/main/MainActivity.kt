@@ -565,7 +565,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 R.drawable.ic_nav_today,
             ) {
                 host.tabs.find("hita.timeline")?.let { it.create() }
-                    ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
+                    ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable", getString(R.string.title_timeline))
             },
             Page(
                 R.id.navigation_timetable,
@@ -573,7 +573,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 R.drawable.ic_nav_timetable,
             ) {
                 host.tabs.find("hita.timetable")?.let { it.create() }
-                    ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
+                    ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable", getString(R.string.title_timetable))
             },
             Page(R.id.navigation_navigation, getString(R.string.title_navigation), R.drawable.ic_nav_navigation) {
                 NavigationFragment()
@@ -630,7 +630,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                         ?: R.drawable.ic_nav_today,
                 ) {
                     host.tabs.find("hita.timeline")?.let { it.create() }
-                        ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
+                        ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable", title)
                 }
 
                 tab.id == "hita.timetable" -> Page(
@@ -640,7 +640,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                         ?: R.drawable.ic_nav_timetable,
                 ) {
                     host.tabs.find("hita.timetable")?.let { it.create() }
-                        ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable")
+                        ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable", title)
                 }
 
                 tab.id == "hita.more" -> Page(
@@ -687,7 +687,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                         // 预设声明了但对应插件没装：给占位页而不是丢掉这个 tab，
                         // 否则底栏会少一格，与 3.1.2 的固定 6 个入口对不上。
                         Page(3000 + index, title, icon) {
-                            PluginUnavailableFragment.newInstance(tab.id)
+                            PluginUnavailableFragment.newInstance(tab.id, title)
                         }
                     }
                 }
