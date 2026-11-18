@@ -76,7 +76,7 @@ Shell 入口：
 ## Agent 未完成
 
 - 文本/PDF/DOCX/XLSX/PPTX 已接：系统文件选择器 → 解析文本 → 输入框；设备已验证四种格式。
-- 未接：图片/视频多模态与 `sendWithAttachment` 媒体消息契约。
+- 图片/视频已接智谱多模态路由；未配置 Key 时返回明确错误，实际模型验收待 Key。
 - 资源卡片已有渲染和点击代码；端到端互动仍待登录态/API Key 验证。
 - `search_external_resource` 只接 HOA（`ResourceDataService`），未接 HITCS/薪火。
 

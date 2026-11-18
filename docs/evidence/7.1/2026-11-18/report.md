@@ -92,3 +92,13 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 - 修复 `shellSecondary/shellTertiary` 自递归崩溃后，宿主 dark More/Today/News 实际可读。
 - 字体 0.85/1.3 六页冒烟；1.3 下 More 行高改为 `heightIn(min=...)` 后不再重叠。
 - 修复提交：`60b6aa7`。
+
+
+## 媒体附件路由（2026-11-19）
+
+选择 `wp-test.png` 后：
+
+- 用户消息：`请分析这个附件` + `[附件: wp-test.png]`
+- 无 Key 时助手：`出错了：未配置智谱 API Key`
+
+说明选择/编码/请求链路已接通；实际视觉理解仍未验收，需在 AI 设置填写智谱 Key。

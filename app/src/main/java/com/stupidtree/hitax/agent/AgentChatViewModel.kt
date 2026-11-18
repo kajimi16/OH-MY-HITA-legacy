@@ -8,10 +8,18 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
+import com.stupidtree.hitax.agent.attachment.ChatAttachmentResult
 import com.stupidtree.hitax.agent.data.ChatSessionRepository
 import com.stupidtree.hitax.agent.llm.ChatMessage
 import com.stupidtree.hitax.agent.llm.LlmChatResult
 import com.stupidtree.hitax.agent.llm.ShellChatService
+import com.stupidtree.hitax.agent.llm.ZhipuChatRequest
+import com.stupidtree.hitax.agent.llm.ZhipuClient
+import com.stupidtree.hitax.agent.llm.ZhipuContent
+import com.stupidtree.hitax.agent.llm.ZhipuImageUrl
+import com.stupidtree.hitax.agent.llm.ZhipuMessage
+import com.stupidtree.hitax.agent.llm.ZhipuVideoUrl
+import com.stupidtree.hitax.agent.llm.awaitCancellable
 import com.stupidtree.hitax.agent.model.AgentResourceCard
 import com.stupidtree.hitax.agent.model.ChatMessageRecord
 import com.stupidtree.hitax.agent.model.ChatSession
@@ -104,6 +112,55 @@ class AgentChatViewModel(application: Application) : AndroidViewModel(applicatio
             sessionId,
             ChatMessageRecord(role = role, text = text, resourceCards = cards),
         ).await()
+    }
+
+    fun sendMedia(prompt: String, media: ChatAttachmentResult.Media, timetableId: String?) {
+        if (busy) return
+        busy = true
+        viewModelScope.launch {
+            try {
+                initJob?.join()
+                val sessionId = ensureSession()
+                val text = prompt.trim().ifEmpty { "请分析这个附件" }
+                val display = "$text\n[附件: ${media.fileName}]"
+                append(sessionId, ChatMessageRecord.Role.USER, display)
+                messages += AgentMessage("user", display)
+                val history = messages
+                    .filter { it.role == "user" || it.role == "assistant" }
+                    .dropLast(1)
+                    .map { ZhipuMessage(it.role, listOf(ZhipuContent(type = "text", text = it.text))) }
+                val mediaContent = if (media.mimeType.startsWith("video/")) {
+                    ZhipuContent(type = "video_url", video_url = ZhipuVideoUrl("data:${media.mimeType};base64,${media.base64}"))
+                } else {
+                    ZhipuContent(type = "image_url", image_url = ZhipuImageUrl("data:${media.mimeType};base64,${media.base64}"))
+                }
+                val response = runCatching {
+                    ZhipuClient.service.chatCompletion(
+                        ZhipuClient.authHeader(getApplication()),
+                        ZhipuChatRequest(messages = history + ZhipuMessage("user", listOf(
+                            ZhipuContent(type = "text", text = text),
+                            mediaContent,
+                        ))),
+                    ).awaitCancellable()
+                }.getOrElse { error ->
+                    val message = "出错了：${error.message ?: "多模态请求失败"}"
+                    append(sessionId, ChatMessageRecord.Role.ASSISTANT, message)
+                    messages += AgentMessage("assistant", message)
+                    return@launch
+                }
+                val answer = response.body()?.choices?.firstOrNull()?.message?.content
+                if (!response.isSuccessful || answer.isNullOrBlank()) {
+                    val message = "出错了：多模态模型 HTTP ${response.code()}"
+                    append(sessionId, ChatMessageRecord.Role.ASSISTANT, message)
+                    messages += AgentMessage("assistant", message)
+                } else {
+                    append(sessionId, ChatMessageRecord.Role.ASSISTANT, answer)
+                    messages += AgentMessage("assistant", answer)
+                }
+            } finally {
+                busy = false
+            }
+        }
     }
 
     /** 会话列表切换；发送中不切换，避免回复写错会话。 */

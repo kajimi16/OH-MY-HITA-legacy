@@ -247,9 +247,11 @@ fun AgentChatScreen(viewModel: AgentChatViewModel, timetableId: String?) {
                                 }
                             }
                         }
-                        is ChatAttachmentResult.Media -> Toast.makeText(
-                            context, "图片/视频附件尚未接入多模态模型", Toast.LENGTH_SHORT,
-                        ).show()
+                        is ChatAttachmentResult.Media -> {
+                            val prompt = input.trim().ifEmpty { "请分析这个附件" }
+                            input = ""
+                            viewModel.sendMedia(prompt, result, timetableId)
+                        }
                         is ChatAttachmentResult.Failure -> {
                             val message = when (result.kind) {
                                 ChatAttachmentResult.Kind.TOO_LARGE -> "附件过大（上限 ${result.maxBytes / 1024 / 1024}MB）"
