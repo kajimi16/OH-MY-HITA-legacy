@@ -565,7 +565,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 R.drawable.ic_nav_today,
             ) {
                 host.tabs.find("hita.timeline")?.let { it.create() }
-                    ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable", getString(R.string.title_timeline))
+                    ?: PluginUnavailableFragment.newInstance("hita.timeline", getString(R.string.title_timeline))
             },
             Page(
                 R.id.navigation_timetable,
@@ -573,7 +573,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 R.drawable.ic_nav_timetable,
             ) {
                 host.tabs.find("hita.timetable")?.let { it.create() }
-                    ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable", getString(R.string.title_timetable))
+                    ?: PluginUnavailableFragment.newInstance("hita.timetable", getString(R.string.title_timetable))
             },
             Page(R.id.navigation_navigation, getString(R.string.title_navigation), R.drawable.ic_nav_navigation) {
                 NavigationFragment()
@@ -630,7 +630,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                         ?: R.drawable.ic_nav_today,
                 ) {
                     host.tabs.find("hita.timeline")?.let { it.create() }
-                        ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable", title)
+                        ?: PluginUnavailableFragment.newInstance("hita.timeline", title)
                 }
 
                 tab.id == "hita.timetable" -> Page(
@@ -640,7 +640,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                         ?: R.drawable.ic_nav_timetable,
                 ) {
                     host.tabs.find("hita.timetable")?.let { it.create() }
-                        ?: PluginUnavailableFragment.newInstance("com.stupidtree.hitax.timetable", title)
+                        ?: PluginUnavailableFragment.newInstance("hita.timetable", title)
                 }
 
                 tab.id == "hita.more" -> Page(
