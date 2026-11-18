@@ -2,6 +2,7 @@ package com.stupidtree.hitax.market
 
 import android.content.Context
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import java.io.File
 
 /**
@@ -15,7 +16,7 @@ object CompositionStore {
     private const val KEY_KILL_SWITCHES = "kill_switches"
     private const val KEY_APPLIED_PRESET = "applied_preset"
     private const val DIRECTORY = "diagnostics"
-    private const val SNAPSHOT = "composition.txt"
+    private const val SNAPSHOT = "composition.json"
 
     fun killSwitches(context: Context): Set<CompositionTarget> =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -50,7 +51,7 @@ object CompositionStore {
     }
 
     fun record(context: Context, plan: CompositionPlan, state: CompositionState) {
-        write(context, plan.dump() + "\n" + state.dump())
+        write(context, snapshotJson(plan, state, report = null))
     }
 
     fun recordResult(
@@ -59,12 +60,43 @@ object CompositionStore {
         state: CompositionState,
         report: CompositionReport,
     ) {
-        write(context, plan.dump() + "\n" + state.dump() + "\n" + report.dump())
+        write(context, snapshotJson(plan, state, report))
     }
 
-    private fun write(context: Context, text: String) {
+    internal fun snapshotJson(
+        plan: CompositionPlan,
+        state: CompositionState,
+        report: CompositionReport? = null,
+    ): String = snapshot(plan, state, report).toString()
+
+    private fun snapshot(
+        plan: CompositionPlan,
+        state: CompositionState,
+        report: CompositionReport?,
+    ): JsonObject {
+        val gson = Gson()
+        return JsonObject().apply {
+            add("desired", gson.toJsonTree(plan.entries))
+            add(
+                "missing",
+                gson.toJsonTree(
+                    plan.missing.map {
+                        mapOf(
+                            "id" to it.id,
+                            "kind" to it.kind.name,
+                            "reason" to it.reason::class.simpleName,
+                        )
+                    }
+                ),
+            )
+            add("actual", gson.toJsonTree(state))
+            if (report != null) add("result", gson.toJsonTree(report))
+        }
+    }
+
+    private fun write(context: Context, json: String) {
         val dir = File(context.filesDir, DIRECTORY).apply { mkdirs() }
-        File(dir, SNAPSHOT).writeText(text)
+        File(dir, SNAPSHOT).writeText(json)
     }
 
     fun read(context: Context): String? =
