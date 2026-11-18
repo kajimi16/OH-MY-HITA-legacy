@@ -541,7 +541,7 @@ private fun MorePage(service: TimetableService?) {
                 Text("查看", color = Color(0xFF2563EB), fontSize = 13.sp)
             }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(26.dp))
         MoreGroup("教务功能") {
             MoreRow("考试", icon = Icons.Default.CalendarToday) { open("com.stupidtree.hitax.ui.eas.exam.ExamActivity") }
             MoreRow("成绩管理", "个人成绩明细 · 分项得分 · 权重折算", Icons.Default.Assessment) {
