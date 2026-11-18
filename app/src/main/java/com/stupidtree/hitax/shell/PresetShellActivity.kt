@@ -354,13 +354,11 @@ private fun TodayPage(service: TimetableService?) {
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp)) {
                 events.sortedBy { it.from.time }.forEach { event ->
                     TodayEventRow(event) {
-                        if (event.subjectId.isNotBlank()) {
-                            context.startActivity(
-                                android.content.Intent()
-                                    .setClassName(context, "com.stupidtree.hitax.ui.subject.SubjectActivity")
-                                    .putExtra("subjectId", event.subjectId)
-                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                            )
+                        val activity = context as? androidx.fragment.app.FragmentActivity
+                        val uiService = (context.applicationContext as? HApplication)
+                            ?.pluginHost?.service(com.stupidtree.hita.api.TimetableUiService.KEY)
+                        if (activity != null && uiService != null) {
+                            uiService.showEventInfo(activity, listOf(event))
                         } else {
                             android.widget.Toast.makeText(context, "该日程没有课程详情", android.widget.Toast.LENGTH_SHORT).show()
                         }
@@ -554,7 +552,7 @@ private fun TimetablePage(service: TimetableService?) {
                     service?.getEventsDuring(animatedStart, animatedStart + 7L * 24 * 3600 * 1000)
                         ?: androidx.lifecycle.MutableLiveData(emptyList<EventItem>())
                 }.observeAsState(emptyList())
-        Row(Modifier.fillMaxWidth().height(hourHeight * 12).pointerInput(Unit) {
+        Row(Modifier.fillMaxWidth().height(hourHeight * 14).pointerInput(Unit) {
             var drag = 0f
             detectHorizontalDragGestures(
                 onDragStart = { drag = 0f },
@@ -565,7 +563,7 @@ private fun TimetablePage(service: TimetableService?) {
             )
         }) {
             Column(Modifier.width(48.dp)) {
-                repeat(12) { index ->
+                repeat(14) { index ->
                     Box(Modifier.fillMaxWidth().height(hourHeight), contentAlignment = Alignment.TopStart) {
                         Text("${index + 8}:00", color = shellTertiary(), fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
                     }
@@ -580,7 +578,7 @@ private fun TimetablePage(service: TimetableService?) {
                         )
                     }
                 }
-                repeat(12) { hour ->
+                repeat(14) { hour ->
                     Box(
                         Modifier.fillMaxWidth().offset(y = (hourHeight * hour)).height(1.dp)
                             .background(Color(0x11000000)),
