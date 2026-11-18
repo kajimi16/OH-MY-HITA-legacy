@@ -1,41 +1,41 @@
 # 插件架构剩余工作：可执行拆分
 
-> 基线：`d1ac9ad`（2026-11-18）
+> 基线：`80b7deb`（2026-11-18）
 > 目标：把 `docs/plugin-roadmap.md` 中尚未完成的部分拆成 Dumate 可直接执行的任务卡。
 > 纪律：只改任务卡点名文件；不引入 YAML / JS 解释器 / 通用事件总线 / 第二套工具注册表；不卸载用户设备上的包。
 
-## 0. 为什么还没有全部完成
+## 0. 当前状态
 
-不是技术阻塞，而是按风险和依赖主动留下的边界：
+已完成并合入 `80b7deb`：
 
-| 未完成项 | 为什么先留下 | 风险 |
+- **A1** `CompositionMaterializer`
+- **E1** 14 个 ReAct 工具参数对象化
+- **B1** `provides` 声明/实际差异诊断
+
+待办只剩：
+
+| 未完成项 | 为什么还没做 | 风险 |
 |---|---|---|
-| `CompositionMaterializer` | 当前 `applyPreset` 的下载/校验/替换/装载仍在一个 executor 里；要拆开必须同时改 `PluginInstaller`、`UiPluginManager`、`PluginMarketViewModel` 和失败回滚，属于跨模块事务重构 | 半成品下载、旧版本被删、安装记录与文件不一致 |
-| 启动时按 active preset 重放 | 需要同时处理缓存索引、离线策略、missing/required、UI store 和 builtin 组件；启动期做网络或错误 enable 会影响可启动性 | 启动卡住、把可用组合拆掉 |
-| `ReActToolInput.actionInput` 参数对象化 | 涉及 14 个工具和提示词/目录/校验三层；当前 schema 已能校验 JSON，但工具仍自行正则解析 | 大面积工具回归，模型输入兼容性 |
-| `PluginDescriptor.provides` / `onServiceLost` | 当前没有真实消费者；路线图自己规定“没有第二个真实消费者不建框架” | 空框架、API 膨胀 |
-| release 诊断导出/设置页 | debug 显式广播已可用；release 入口需要产品 UI 和导出策略 | 无实际阻塞，属于产品化尾项 |
-| 整合包设备冒烟 | 内置演示索引只有插件、没有 preset；AI 资源卡片需要登录/Key | 不是代码阻塞，是测试环境限制 |
+| A2 启动时按 active preset 重放 | 需要同时处理缓存索引、离线策略、missing/required、UI store 和 builtin 组件；启动期做网络或错误 enable 会影响可启动性 | 启动卡住、把可用组合拆掉 |
+| F1 release 诊断导出/设置页 | debug 显式广播已可用；release 入口需要产品 UI 和导出策略 | 产品化尾项，无核心阻塞 |
+| 整合包设备冒烟 | 内置演示索引只有插件、没有 preset；AI 资源卡片需要登录/Key | 测试环境限制，不是代码阻塞 |
 
 ## 1. 工作流 DAG
 
 ```mermaid
 flowchart LR
-  A1["A1 Materializer"] --> A2["A2 Startup replay"]
+  A1["A1 Materializer ✅ 80b7deb"] --> A2["A2 Startup replay"]
   A2 --> F1["F1 Diagnostics metadata / release export"]
-  E1["E1 Typed tool args"]
-  B1["B1 provides / onServiceLost decision"]
-  A1 -.-> T1["A1 tests"]
-  E1 -.-> T2["E1 tests"]
+  E1["E1 Typed tool args ✅ 80b7deb"]
+  B1["B1 provides diagnostics ✅ 80b7deb"]
 ```
 
 建议执行顺序：
 
-1. **并行波 1**：A1、E1、B1（文件不重叠）。
-2. **波 2**：A2（依赖 A1 的 artifact/状态边界）。
-3. **波 3**：F1（依赖 A2 的 startup 状态字段；避免与 A2 同时改 `HApplication`）。
+1. **下一步**：A2（依赖已完成的 A1 artifact/状态边界）。
+2. **A2 完成后**：F1（依赖 A2 的 startup 状态字段；避免与 A2 同时改 `HApplication`）。
 
-## 2. A1：CompositionMaterializer
+## 2. A1：CompositionMaterializer ✅ 80b7deb
 
 ### 目标
 
@@ -169,7 +169,7 @@ installAllWithDescriptors + PluginInstaller.restore()
 - 安全开关生效：被 kill-switch 的条目既不被启动启用，也不会在失败回滚中复活。
 - 设备冷启动两次，第二次状态与第一次一致（幂等）。
 
-## 4. E1：ReAct 工具参数对象化
+## 4. E1：ReAct 工具参数对象化 ✅ 80b7deb
 
 ### 目标
 
@@ -212,7 +212,7 @@ installAllWithDescriptors + PluginInstaller.restore()
 - `submit_review` 明确意图 guard 仍生效。
 - 资源卡片仍能从 `search_course` / `search_external_resource` 进入 `ToolExecution.cards`。
 
-## 5. B1：`provides` / `onServiceLost` 的取舍
+## 5. B1：`provides` / `onServiceLost` 的取舍 ✅ 80b7deb（方案 A）
 
 ### 目标
 
@@ -273,7 +273,7 @@ installAllWithDescriptors + PluginInstaller.restore()
 每个任务单独发给 Dumate，附：
 
 ```text
-Baseline: d1ac9ad
+Baseline: 80b7deb
 Task: A1 / A2 / E1 / B1 / F1（只做一张卡）
 Read: docs/plans/2026-11-18-plugin-remaining-work.md
 Rule: 不改任务卡外文件；不执行 adb uninstall；不跳测试
@@ -281,8 +281,7 @@ Verify: 任务卡里的命令 + 相关单测
 Report: 改动文件、验证命令、失败证据、剩余风险
 ```
 
-推荐并行：
+当前只剩 A2、F1：
 
-- 第一波：A1 + E1 + B1（文件基本不重叠）。
-- 第二波：A2（等 A1 完成）。
-- 第三波：F1（等 A2 完成，避免同时改 `HApplication`）。
+- 先发 A2；完成后发 F1。
+- 不要把已完成的 A1/E1/B1 再次发给 Dumate。
