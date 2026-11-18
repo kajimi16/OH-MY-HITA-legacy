@@ -67,8 +67,8 @@ Shell 入口：
 
 ## Agent 未完成
 
-- 文本类附件已接：系统文件选择器 → ≤100 KB 文本 → 输入框。
-- 未接：PDF / DOCX / XLSX / PPTX / 图片 / 视频解析与 `sendWithAttachment` 消息契约。
+- 文本/PDF/DOCX/XLSX/PPTX 已接：系统文件选择器 → 解析文本 → 输入框；设备已验证四种格式。
+- 未接：图片/视频多模态与 `sendWithAttachment` 媒体消息契约。
 - 资源卡片已有渲染和点击代码；端到端互动仍待登录态/API Key 验证。
 - `search_external_resource` 只接 HOA（`ResourceDataService`），未接 HITCS/薪火。
 

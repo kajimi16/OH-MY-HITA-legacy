@@ -206,6 +206,9 @@ dependencies {
     implementation 'io.noties.markwon:html:4.6.2'
     // syntax highlight removed (prism4j artifacts not available in current mirrors)
     implementation 'ru.noties:jlatexmath-android:0.2.0'
+
+    // Chat attachments: PDF/Office parsing.
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
 }
 
 // Compatibility alias for tooling/scripts that still invoke :app:testClasses (Java plugin task).

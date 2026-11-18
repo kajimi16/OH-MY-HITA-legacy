@@ -64,3 +64,15 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 ## 验收决定（2026-11-18）
 
 用户确认：在没有可靠、非过拟合改动的前提下，接受当前残差，停止 header/dock 像素调优。M4 关闭；不声明所有页面达到 2%/1% 阈值。后续 backlog 见 7.1 文档 §8.2。
+
+
+## 附件解析验证（2026-11-19）
+
+设备 `emulator-5554`，选中附件后输入框实际出现：
+
+- PDF：`【PDF文档】页数：1 … PDF attachment test content`
+- DOCX：`【Word文档】DOCX attachment test content`
+- XLSX：`【Excel表格】工作表1：Sheet1 第1行：[XLSX attachment test content]`
+- PPTX：`【PowerPoint演示文稿】幻灯片1：PPTX attachment test content`
+
+未验证：图片/视频多模态（需要模型 Key）。

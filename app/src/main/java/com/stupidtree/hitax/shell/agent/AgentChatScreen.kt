@@ -1,7 +1,6 @@
 package com.stupidtree.hitax.shell.agent
 
 import android.content.Context
-import android.provider.OpenableColumns
 import android.text.method.LinkMovementMethod
 import android.widget.TextView
 import android.widget.Toast
@@ -77,12 +76,17 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.stupidtree.hita.api.ResourceUiService
 import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.agent.AgentChatViewModel
+import com.stupidtree.hitax.agent.attachment.ChatAttachmentInput
+import com.stupidtree.hitax.agent.attachment.ChatAttachmentProcessor
+import com.stupidtree.hitax.agent.attachment.ChatAttachmentResult
+import com.stupidtree.hitax.agent.attachment.DocumentTextParser
 import com.stupidtree.hitax.agent.AgentMessage
 import com.stupidtree.hitax.agent.model.AgentResourceCard
 import com.stupidtree.hitax.agent.settings.AiSettings
 import com.stupidtree.hitax.agent.settings.AiSettingsRepository
 import com.stupidtree.hitax.agent.settings.AiChatProvider
 import io.noties.markwon.Markwon
+import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -210,40 +214,53 @@ fun AgentChatScreen(viewModel: AgentChatViewModel, timetableId: String?) {
 
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-        val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val attachmentProcessor = remember {
+            ChatAttachmentProcessor(
+                directory = File(context.cacheDir, "chat-attachments").apply { mkdirs() },
+                parser = DocumentTextParser(),
+                encodeMedia = { "" },
+            )
+        }
+        val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) {
                 scope.launch {
-                    val name = runCatching {
-                        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-                            ?.use { cursor ->
-                                if (cursor.moveToFirst()) cursor.getString(0) else null
-                            }
-                    }.getOrNull() ?: uri.lastPathSegment.orEmpty().substringAfterLast('/')
-                    val mime = context.contentResolver.getType(uri).orEmpty()
-                    val ext = name.substringAfterLast('.', "").lowercase()
-                    val textLike = mime.startsWith("text/") || ext in setOf("txt", "md", "json", "xml", "csv", "html", "htm")
-                    if (!textLike) {
-                        Toast.makeText(context, "当前仅支持文本类附件", Toast.LENGTH_SHORT).show()
-                        return@launch
+                    val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                        ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                        ?: uri.lastPathSegment.orEmpty().substringAfterLast('/')
+                    val result = withContext(Dispatchers.IO) {
+                        runCatching {
+                            attachmentProcessor.process(object : ChatAttachmentInput {
+                                override val displayName = name
+                                override fun open() = context.contentResolver.openInputStream(uri)
+                                    ?: throw IOException("无法打开文件")
+                            })
+                        }.getOrElse { ChatAttachmentResult.Failure(ChatAttachmentResult.Kind.READ, name, it.message) }
                     }
-                    val content = runCatching {
-                        withContext(Dispatchers.IO) {
-                            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
-                                val buffer = CharArray(100_000)
-                                val count = reader.read(buffer)
-                                if (count <= 0) "" else String(buffer, 0, count)
+                    when (result) {
+                        is ChatAttachmentResult.Text -> {
+                            if (result.content.isBlank()) {
+                                Toast.makeText(context, "附件内容为空", Toast.LENGTH_SHORT).show()
+                            } else {
+                                input = buildString {
+                                    if (input.isNotBlank()) append(input).append("\n")
+                                    append("[附件: ").append(result.fileName).append("]\n").append(result.content)
+                                }
                             }
                         }
-                    }.getOrElse {
-                        Toast.makeText(context, "附件读取失败", Toast.LENGTH_SHORT).show()
-                        return@launch
-                    }.orEmpty()
-                    if (content.isBlank()) {
-                        Toast.makeText(context, "附件为空", Toast.LENGTH_SHORT).show()
-                    } else {
-                        input = buildString {
-                            if (input.isNotBlank()) append(input).append("\n")
-                            append("[附件: ").append(name).append("]\n").append(content)
+                        is ChatAttachmentResult.Media -> Toast.makeText(
+                            context, "图片/视频附件尚未接入多模态模型", Toast.LENGTH_SHORT,
+                        ).show()
+                        is ChatAttachmentResult.Failure -> {
+                            val message = when (result.kind) {
+                                ChatAttachmentResult.Kind.TOO_LARGE -> "附件过大（上限 ${result.maxBytes / 1024 / 1024}MB）"
+                                ChatAttachmentResult.Kind.UNSUPPORTED -> "不支持的附件类型"
+                                ChatAttachmentResult.Kind.EMPTY -> "附件为空"
+                                ChatAttachmentResult.Kind.PARSE -> "附件解析失败"
+                                ChatAttachmentResult.Kind.EXPANDED_LIMIT -> "Office 文件展开后过大"
+                                ChatAttachmentResult.Kind.MEMORY -> "附件过大，内存不足"
+                                ChatAttachmentResult.Kind.READ -> "附件读取失败"
+                            }
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -255,7 +272,9 @@ fun AgentChatScreen(viewModel: AgentChatViewModel, timetableId: String?) {
             verticalAlignment = Alignment.Bottom,
         ) {
             IconButton(
-                onClick = { attachmentPicker.launch("text/*") },
+                onClick = {
+                    attachmentPicker.launch(arrayOf("*/*"))
+                },
                 enabled = !viewModel.busy,
                 modifier = Modifier.size(44.dp).padding(end = 4.dp),
             ) {
