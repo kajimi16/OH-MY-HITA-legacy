@@ -80,6 +80,8 @@ materialize 阶段只下载、校验、落到 staging；reconcile 阶段只 swap
    - `UiPluginManager.installFile` 保持“接收已校验文件”的语义，不再负责下载。
 4. `applyPreset`：
    - resolver 产出 plan 后，先处理所有 `CompositionAction.Install`。
+   - `BUILTIN` 没有 artifact：不经过 materializer，直接由 `BuiltinPluginManager.setEnabled(true)` 处理。
+   - `DEX` / `UI` 才需要 prepared artifact。
    - required 准备失败：不进入 reconcile，已有组合保持原样。
    - optional 准备失败：跳过该 install，计入 `optionalFailures`，继续。
    - `CompositionExecutor.install` 从 prepared map 取文件，不访问网络。
@@ -101,14 +103,17 @@ materialize 阶段只下载、校验、落到 staging；reconcile 阶段只 swap
 
 ### 目标
 
-重启后不再只做 `installAllWithDescriptors + restore()`，而是：
+保留现有启动装配，在其**之后**追加一次组合对账：
 
 ```text
-active preset + saved plan + cached index + current state
+installAllWithDescriptors + PluginInstaller.restore()
+  -> active preset + saved plan + cached index + current state
   -> resolve startup plan
   -> 只处理已安装/已具备 artifact 的条目
-  -> reconcile
+  -> reconcile enable/disable
 ```
+
+顺序不能反过来：replay 放在 builtin/dex 恢复之前时，`BuiltinPluginManager.rows()` / `host.isInstalled()` 还是空的，reconcile 会变成 no-op。
 
 启动期**不下载**。缺 required artifact 时保持当前可用状态并写诊断，不阻塞启动。
 
@@ -144,10 +149,11 @@ active preset + saved plan + cached index + current state
    ): StartupDecision
    ```
 3. startup plan 只允许对已 installed 的条目 enable/disable；`NotInstalled` / `NotInIndex` 不进入 install。
-4. `HApplication` 在 `provideGlobal` 后、builtin install 前：
-   - 先读取 applied preset + cached index；
-   - 如果 `canReconcile=false` 或没有 saved preset：保留现有启动路径；
-   - 如果可重放：执行 `CompositionExecutor` 的 enable/disable（不 install），然后再补齐 builtin/restore 兜底。
+4. `HApplication` 在 `installAllWithDescriptors(...)` 与 `PluginInstaller.restore()` **完成之后**：
+   - 读取 applied preset + cached index；
+   - 如果 `canReconcile=false` 或没有 saved preset：保持现有启动结果；
+   - 如果可重放：执行 `CompositionExecutor` 的 enable/disable；启动期不 install DEX/UI。
+   - `BUILTIN` 的 `CompositionAction.Install`（若出现）只调用 `BuiltinPluginManager.setEnabled(true)`，不经过 materializer。
 5. 启动失败只写 `PluginDiagnostics`/`composition.json`，不抛到 `onCreate` 外层。
 
 ### 验收
@@ -157,7 +163,8 @@ active preset + saved plan + cached index + current state
 ./gradlew :app:testDebugUnitTest --tests "*Composition*"
 ```
 
-- 有 saved preset、文件已安装：启动后 old-only UI/builtin 被停用，目标条目启用。
+- 有 saved preset、文件已安装：builtin/dex 恢复后 old-only UI/builtin 被停用，目标条目启用。
+- builtin 在此阶段能被实际 enable/disable（因为 `host.isInstalled` 已由前序装配填充），不是 no-op。
 - 缓存索引缺失：不 crash、不 disable 当前可用组合，写 missing 诊断。
 - 安全开关生效：被 kill-switch 的条目既不被启动启用，也不会在失败回滚中复活。
 - 设备冷启动两次，第二次状态与第一次一致（幂等）。
