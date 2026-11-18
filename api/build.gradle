@@ -95,3 +95,18 @@ tasks.register('generateApiAbi') {
         println "api abi: ${digest} (${classes.size()} classes)"
     }
 }
+
+// 防止提交的 ABI 指纹落后于 :api 公开签名；CI/本地可运行 :verifyApiAbi。
+tasks.register('verifyApiAbi') {
+    group = 'verification'
+    description = 'Regenerate api-abi.txt and fail if the committed fingerprint is stale.'
+    dependsOn 'generateApiAbi'
+    doLast {
+        def process = new ProcessBuilder(
+            'git', 'diff', '--exit-code', '--', 'api/api-abi.txt',
+        ).directory(rootProject.projectDir).inheritIO().start()
+        if (process.waitFor() != 0) {
+            throw new GradleException('api/api-abi.txt 已过期，请提交重新生成的指纹')
+        }
+    }
+}

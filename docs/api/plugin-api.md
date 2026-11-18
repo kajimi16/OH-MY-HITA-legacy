@@ -161,6 +161,7 @@ interface ThemeController { fun setNightMode(night: Boolean) }
 - `HITA_API_VERSION` 是契约的语义版本；任何破坏性改动必须递增。
 - `api/api-abi.txt` 由 `./gradlew :api:generateApiAbi` 从公开 ABI 生成；
   插件发布时把哈希写入索引的 `apiAbi`，宿主通过 `BuildConfig.API_ABI` 比对。
+  CI/本地用 `./gradlew :verifyApiAbi` 检查提交的指纹是否过期。
 - `app/src/main/assets/plugin_exemptions.json` 是精确豁免表，键为 `id@version`，
   值为允许的宿主版本列表；升级插件或宿主都不继承豁免。空表表示没有豁免。
 - 内核装载时检查 `requiresApi <= HITA_API_VERSION` 与 ABI；不满足直接拒绝并记录原因。
