@@ -192,6 +192,37 @@ class CompositionResolverTest {
     }
 
     @Test
+    fun requiredEntryDisabledByUserOrSafetyBlocksPreset() {
+        val userPlan = resolve(
+            next = preset("new", PresetPluginRef("ui", "ui", required = true)),
+            available = mapOf(CompositionKind.UI to setOf("ui")),
+            installed = mapOf(CompositionKind.UI to setOf("ui")),
+            userDisabled = mapOf(CompositionKind.UI to setOf("ui")),
+        )
+        assertEquals(1, userPlan.blockingRequiredDisabled().size)
+
+        val safePlan = resolve(
+            next = preset("new", PresetPluginRef("ui", "ui", required = true)),
+            available = mapOf(CompositionKind.UI to setOf("ui")),
+            installed = mapOf(CompositionKind.UI to setOf("ui")),
+            killSwitches = setOf("ui"),
+        )
+        assertEquals(CompositionSource.SAFETY, safePlan.blockingRequiredDisabled().single().source)
+    }
+
+    @Test
+    fun optionalEntryDisabledByUserDoesNotBlockPreset() {
+        val plan = resolve(
+            next = preset("new", PresetPluginRef("ui", "ui", required = false)),
+            available = mapOf(CompositionKind.UI to setOf("ui")),
+            installed = mapOf(CompositionKind.UI to setOf("ui")),
+            userDisabled = mapOf(CompositionKind.UI to setOf("ui")),
+        )
+
+        assertTrue(plan.blockingRequiredDisabled().isEmpty())
+    }
+
+    @Test
     fun userDisabledBaseEntryNeverGetsReEnabledByPreset() {
         val plan = resolve(
             base = setOf("timetable"),

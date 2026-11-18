@@ -390,6 +390,15 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 )
                 return@execute
             }
+            val requiredDisabled = plan.blockingRequiredDisabled()
+            if (requiredDisabled.isNotEmpty()) {
+                message.postValue(
+                    "整合包必选插件被停用：" + requiredDisabled.joinToString {
+                        "${it.id}（${it.source.name.lowercase()}）"
+                    },
+                )
+                return@execute
+            }
             val state = CompositionState(
                 installed = mapOf(
                     CompositionKind.UI to installedUi.keys,
