@@ -484,9 +484,9 @@ private fun MorePage(service: TimetableService?) {
         }
     }
     Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())
-        .padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text("更多", fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(14.dp))
+        .padding(horizontal = 16.dp, vertical = 20.dp)) {
+        Text("更多", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(28.dp))
         Card(
             shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
