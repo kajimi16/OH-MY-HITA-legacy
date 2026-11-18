@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MeetingRoom
@@ -514,9 +515,16 @@ private fun MorePage(service: TimetableService?) {
         ) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.width(44.dp).height(44.dp).background(Color(0xFFE8EEFF), RoundedCornerShape(22.dp)),
+                    Modifier.width(44.dp).height(44.dp).background(Color(0xFF2563EB), RoundedCornerShape(22.dp)),
                     contentAlignment = Alignment.Center,
-                ) { Text("H", color = Color(0xFF2563EB), fontWeight = FontWeight.Bold) }
+                ) {
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
                 Column(Modifier.padding(start = 14.dp)) {
                     Text(userName ?: "未登录教务", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                     Text(
@@ -531,14 +539,32 @@ private fun MorePage(service: TimetableService?) {
         Card(
             shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().clickable {
+                com.stupidtree.hitax.utils.ActivityUtils.startTimetableManager(context)
+            },
         ) {
             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
+                Box(
+                    Modifier.size(40.dp).background(Color(0xFFE8F0FE), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = Color(0xFF3390EC),
+                        modifier = Modifier.size(21.dp),
+                    )
+                }
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text("课表管理", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                     Text("共${timetableCount ?: 0}个课表", color = Color(0xFF6B7280), fontSize = 12.sp)
                 }
-                Text("查看", color = Color(0xFF2563EB), fontSize = 13.sp)
+                androidx.compose.material3.Icon(
+                    androidx.compose.material.icons.Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color(0xFF9CA3AF),
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
         Spacer(Modifier.height(26.dp))
