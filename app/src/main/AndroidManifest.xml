@@ -142,6 +142,9 @@
         <activity
             android:name=".shell.news.ShellPortalLoginActivity"
             android:exported="false" />
+        <activity
+            android:name=".shell.news.ShellNewsDetailActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

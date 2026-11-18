@@ -2,7 +2,6 @@ package com.stupidtree.hitax.shell.news
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.text.Html
 import android.webkit.CookieManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -200,9 +199,10 @@ private fun EmptyMessage(text: String, action: String = "重试", onAction: () -
 
 private fun openUrl(context: Context, url: String) {
     if (url.isBlank()) return
-    runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    }
+    context.startActivity(
+        Intent(context, ShellNewsDetailActivity::class.java)
+            .putExtra(ShellNewsDetailActivity.EXTRA_URL, url)
+    )
 }
 
 private fun readCookie(): String = runCatching {
