@@ -40,6 +40,7 @@ import com.stupidtree.style.ThemeTools
 import com.stupidtree.style.base.BaseActivity
 import com.stupidtree.style.base.BaseTabAdapter
 import com.stupidtree.style.widgets.PopUpText
+import me.ibrahimsn.lib.OnItemSelectedListener
 
 /**
  * 很显然，这是主界面
@@ -49,6 +50,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     com.stupidtree.style.base.TimelinePageController {
 
     private var redirectedToShell = false
+    private var hitaLMode = false
 
     /**
      * 插件贡献的抽屉项。id 由宿主按顺序分配，避免菜单 xml 里写死。
@@ -267,13 +269,29 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
         backfillPresetLayoutOnStartup()
         //  binding.title.text = binding.navView.menu.getItem(0).title
         pages = buildPages()
-        binding.navView.submit(
-            pages.map { DynamicBottomBar.Item(it.id, it.title, it.iconRes, it.icon) }
-        )
-        binding.navView.onItemSelected = { index ->
-            binding.navView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-            binding.pager.currentItem = index
-            true
+        hitaLMode = com.stupidtree.hitax.market.PresetStateStore.activeId(this) == "hita-l-1.5.3"
+        if (hitaLMode) {
+            binding.navView.visibility = VISIBLE
+            binding.navViewExtended.visibility = GONE
+            binding.navView.itemActiveIndex = 0
+            binding.navView.onItemSelectedListener = object : OnItemSelectedListener {
+                override fun onItemSelect(pos: Int): Boolean {
+                    binding.navView.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                    binding.pager.currentItem = pos
+                    return true
+                }
+            }
+        } else {
+            binding.navView.visibility = GONE
+            binding.navViewExtended.visibility = VISIBLE
+            binding.navViewExtended.submit(
+                pages.map { DynamicBottomBar.Item(it.id, it.title, it.iconRes, it.icon) }
+            )
+            binding.navViewExtended.onItemSelected = { index ->
+                binding.navViewExtended.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                binding.pager.currentItem = index
+                true
+            }
         }
         binding.pager.adapter = object : BaseTabAdapter(supportFragmentManager, pages.size) {
             override fun initItem(position: Int): Fragment = pages[position].create()
@@ -292,7 +310,8 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
             }
 
             override fun onPageSelected(position: Int) {
-                binding.navView.select(position)
+                if (hitaLMode) binding.navView.itemActiveIndex = position
+                else binding.navViewExtended.select(position)
                 showHeaderFor(position)
             }
 

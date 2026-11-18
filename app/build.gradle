@@ -123,6 +123,7 @@ dependencies {
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.activity:activity-compose:1.9.1'
+    implementation 'com.github.ibrahimsn98:SmoothBottomBar:1.7.6'
     implementation project(path: ':api')
     implementation project(path: ':kernel')
     // 插件在运行时打包进 APK，但不在宿主编译期可见（防止宿主越界引用插件实现）

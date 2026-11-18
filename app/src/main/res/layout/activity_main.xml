@@ -83,7 +83,7 @@
                             android:layout_gravity="center"
                             android:layout_marginEnd="-8dp"
                             android:foreground="?attr/selectableItemBackgroundBorderless"
-                            android:padding="?attr/designSpacing"
+                            android:padding="16dp"
                             android:theme="@style/button_ripple_control"
                             android:tintMode="src_in"
                             app:srcCompat="@drawable/ic_baseline_menu_24"
@@ -132,7 +132,7 @@
                             android:layout_gravity="center"
                             android:layout_marginStart="-6dp"
                             android:foreground="?attr/selectableItemBackgroundBorderless"
-                            android:padding="?attr/designSpacing"
+                            android:padding="16dp"
                             android:theme="@style/button_ripple_control"
                             android:tint="?attr/textColorSecondary"
                             android:tintMode="src_in"
@@ -186,7 +186,7 @@
                             android:backgroundTint="?attr/backgroundColorBottomAsTint"
                             android:backgroundTintMode="src_over"
                             app:cardBackgroundColor="?attr/colorControlNormal"
-                            app:cardCornerRadius="?attr/designCornerRadius"
+                            app:cardCornerRadius="12dp"
                             app:cardElevation="0dp">
 
                             <TextView
@@ -216,7 +216,7 @@
                             android:layout_gravity="center"
                             android:layout_marginEnd="-8dp"
                             android:foreground="?attr/selectableItemBackgroundBorderless"
-                            android:padding="?attr/designSpacing"
+                            android:padding="16dp"
                             android:theme="@style/button_ripple_control"
                             android:tint="?attr/textColorSecondary"
                             android:tintMode="src_in"
@@ -229,7 +229,7 @@
                             android:layout_gravity="center"
                             android:layout_marginStart="-6dp"
                             android:foreground="?attr/selectableItemBackgroundBorderless"
-                            android:padding="?attr/designSpacing"
+                            android:padding="16dp"
                             android:theme="@style/button_ripple_control"
                             android:tintMode="src_in"
                             app:srcCompat="@drawable/ic_baseline_add_24"
@@ -245,7 +245,7 @@
 
                     <!--                    android:clickable="true"-->
                     <!--                    android:foreground="?attr/selectableItemBackgroundBorderless"-->
-                    <!--                    android:padding="?attr/designSpacing"-->
+                    <!--                    android:padding="16dp"-->
                     <!--                    app:srcCompat="@drawable/ic_baseline_add_circle_outline_24" />-->
 
                 </LinearLayout>
@@ -263,11 +263,30 @@
             android:overScrollMode="never"
             app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior" />
 
-        <com.stupidtree.hitax.ui.main.DynamicBottomBar
+        <me.ibrahimsn.lib.SmoothBottomBar
             android:id="@+id/nav_view"
             android:layout_width="match_parent"
             android:layout_height="64dp"
-            android:layout_gravity="bottom" />
+            android:layout_gravity="bottom"
+            app:backgroundColor="?attr/backgroundColorBottom"
+            app:duration="180"
+            app:iconSize="21dp"
+            app:iconTint="?attr/colorPrimaryDisabled"
+            app:iconTintActive="?attr/colorPrimary"
+            app:indicatorColor="?attr/backgroundIconColorBottom"
+            app:indicatorRadius="24dp"
+            app:itemPadding="8dp"
+            app:menu="@menu/main_bottom_nav_menu"
+            app:sideMargins="24dp"
+            app:textColor="?attr/colorPrimary"
+            app:textSize="12sp" />
+
+        <com.stupidtree.hitax.ui.main.DynamicBottomBar
+            android:id="@+id/nav_view_extended"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_gravity="bottom"
+            android:visibility="gone" />
 
         <!--        app:itemFontFamily=""-->
 
@@ -289,7 +308,7 @@
             android:layout_height="1dp"
             android:layout_marginStart="24dp"
             android:layout_marginEnd="24dp"
-            android:layout_marginBottom="?attr/designSpacing"
+            android:layout_marginBottom="16dp"
             android:alpha="0.8"
             android:background="?android:attr/listDivider" />
 
