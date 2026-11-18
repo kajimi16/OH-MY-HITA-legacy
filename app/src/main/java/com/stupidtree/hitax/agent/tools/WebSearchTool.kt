@@ -21,7 +21,11 @@ class WebSearchTool : ReActTool {
     }
 
     private fun extractParam(actionInput: String): String {
-        val regex = Regex(""""param"\s*:\s*"([^"]+)"""")
-        return regex.find(actionInput)?.groupValues?.get(1) ?: actionInput.trim()
+        listOf("param", "query", "keyword").forEach { key ->
+            val value = Regex(""""$key"\s*:\s*"([^"]+)"""")
+                .find(actionInput)?.groupValues?.getOrNull(1)?.trim()
+            if (!value.isNullOrBlank()) return value
+        }
+        return actionInput.trim()
     }
 }

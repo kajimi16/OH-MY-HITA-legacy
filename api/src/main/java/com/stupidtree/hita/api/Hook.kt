@@ -2,7 +2,7 @@ package com.stupidtree.hita.api
 
 /**
  * 同步决策拦截：监听器拿到当前值，可调用 [next] 委托下游，也可直接返回短路。
- * 注册顺序就是执行顺序。
+ * 注册顺序就是执行顺序。监听器不得做阻塞 IO；宿主不提供超时。
  */
 fun interface Decision<T> {
     fun handle(value: T, next: (T) -> T): T
@@ -12,7 +12,7 @@ class HookKey<T>(val name: String) {
     override fun toString(): String = "HookKey($name)"
 }
 
-/** 云同步拉取到的一条远端记录，可在写入 codec 之前合并/改写。 */
+/** 云同步拉取到的一批远端记录，可在写入 codec 之前合并/改写。 */
 data class SyncRecord(
     val key: String,
     val ids: List<String>,
