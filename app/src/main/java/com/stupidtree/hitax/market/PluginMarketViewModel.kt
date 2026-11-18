@@ -345,6 +345,33 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
             val installedUi = uiPluginManager.installed().associateBy { it.id }
             val installedDex = installer.installed().associateBy { it.id }
             val builtins = builtin.rows().associateBy { it.id }
+            val plan = CompositionResolver.resolve(
+                baseIds = builtins.keys,
+                next = preset,
+                previous = previous,
+                available = mapOf(
+                    CompositionKind.UI to ui.keys,
+                    CompositionKind.DEX to dex.keys,
+                    CompositionKind.BUILTIN to builtins.keys,
+                ),
+                installed = mapOf(
+                    CompositionKind.UI to installedUi.keys,
+                    CompositionKind.DEX to installedDex.keys,
+                    CompositionKind.BUILTIN to builtins.values
+                        .filter { it.installed }
+                        .map { it.id }
+                        .toSet(),
+                ),
+            )
+            val requiredMissing = plan.blockingRequiredMissing()
+            if (requiredMissing.isNotEmpty()) {
+                message.postValue(
+                    "整合包缺少必选插件：" + requiredMissing.joinToString {
+                        "${it.id}（${it.kind.name.lowercase()}）"
+                    },
+                )
+                return@execute
+            }
             var installed = 0
             var enabled = 0
             var skipped = 0
