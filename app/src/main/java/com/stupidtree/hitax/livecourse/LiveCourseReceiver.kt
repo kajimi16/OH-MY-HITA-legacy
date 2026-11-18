@@ -8,6 +8,8 @@ import androidx.core.content.ContextCompat
 class LiveCourseReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != LiveCourseAlarm.ACTION) return
+        // 全局开关关闭时不拉起守护服务（对齐 3.1.2「更多」页的直播课开关）
+        if (!LiveCourseSettings.isEnabled(context)) return
         val owner = intent.getStringExtra(LiveCourseAlarm.EXTRA_OWNER) ?: return
         val id = intent.getStringExtra(LiveCourseAlarm.EXTRA_ID) ?: return
         val spec = LiveCourseStore(context).all()

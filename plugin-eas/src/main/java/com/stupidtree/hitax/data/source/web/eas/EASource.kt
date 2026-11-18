@@ -1297,14 +1297,70 @@ class EASource internal constructor() : EASService {
     }
 
 
-    // ================================================================ 考试信息（暂未找到新接口）
+    // ================================================================ 考试信息
+    // 移植自 HITA_Android v3.1.2 的 Shenzhen 考试查询：
+    // POST /app/kscx/queryKsxxByXs，bearer + rolecode，返回 content.list。
     override fun getExamItems(token: EASToken): LiveData<DataState<List<ExamItem>>> {
         val res = MutableLiveData<DataState<List<ExamItem>>>()
         Thread {
-            // TODO: 补充新版考试查询接口
-            res.postValue(DataState(emptyList(), DataState.STATE.SUCCESS))
+            val state = runCatching { queryShenzhenExams(token) }
+                .getOrElse { DataState(DataState.STATE.FETCH_FAILED, it.message ?: "查询考试失败") }
+            res.postValue(state)
         }.start()
         return res
+    }
+
+    private fun queryShenzhenExams(token: EASToken): DataState<List<ExamItem>> {
+        if (token.accessToken.isNullOrBlank()) {
+            return DataState(DataState.STATE.NOT_LOGGED_IN, "请先登录深圳教务")
+        }
+        val calendar = java.util.Calendar.getInstance()
+        val year = calendar.get(java.util.Calendar.YEAR)
+        val month = calendar.get(java.util.Calendar.MONTH) + 1
+        // 学年/学期按自然月推导：9-12 月与次年 1 月属第 1 学期，2-8 月属第 2 学期
+        val xn: String
+        val xq: String
+        when (month) {
+            9, 10, 11, 12 -> { xn = "$year-${year + 1}"; xq = "1" }
+            1 -> { xn = "${year - 1}-$year"; xq = "1" }
+            else -> { xn = "${year - 1}-$year"; xq = "2" }
+        }
+        val body = org.json.JSONObject().apply {
+            put("type", "json")
+            put("xn", xn)
+            put("xq", xq)
+            put("kssjddm", "")
+            put("kcdmorkcmc", "")
+            put("pageNum", 1)
+            put("pageSize", 50)
+        }.toString()
+        val response = jsonPost(token, "/app/kscx/queryKsxxByXs", body)
+        if (response.statusCode() == 401) {
+            return DataState(DataState.STATE.NOT_LOGGED_IN, "深圳教务会话已失效")
+        }
+        if (response.statusCode() != 200) {
+            return DataState(DataState.STATE.FETCH_FAILED, "网络请求失败 HTTP ${response.statusCode()}")
+        }
+        val rawBody = response.body()
+        val json = org.json.JSONObject(rawBody)
+        if (json.optInt("code") != 200) {
+            return DataState(DataState.STATE.FETCH_FAILED, json.optString("msg", "查询失败"))
+        }
+        val list = json.optJSONObject("content")?.optJSONArray("list")
+        val exams = mutableListOf<ExamItem>()
+        for (i in 0 until (list?.length() ?: 0)) {
+            val item = list!!.optJSONObject(i) ?: continue
+            exams += ExamItem().apply {
+                courseName = item.optString("KCMC")
+                examDate = item.optString("KSRQ")
+                examTime = item.optString("KSJTSJ")
+                examType = item.optString("KSSJDMC")
+                examLocation = "${item.optString("JXLMC")} ${item.optString("JXCDMC")}".trim()
+                termName = item.optString("XNXQMC")
+                campusName = item.optString("XIAOQUBMC")
+            }
+        }
+        return DataState(exams, DataState.STATE.SUCCESS)
     }
 
     // ================================================================ 选课（加入购物车 = 实际选课动作）

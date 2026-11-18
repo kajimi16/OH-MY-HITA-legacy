@@ -193,6 +193,8 @@ class PluginHost(
             plugin.install(scope)
             descriptors[plugin.id] = descriptor
             logDeclaredProvideMismatches(plugin.id, descriptor)
+            // 同一 id 可能先前失败过（例如新版本装载失败后回滚到旧版本）。
+            // 成功装载必须清掉旧记录，否则 PluginLoader 会把这次成功误判成失败。
             failures.remove(plugin.id)
             failurePhases.remove(plugin.id)
             logger("plugin installed: ${plugin.id}", null)
@@ -261,6 +263,8 @@ class PluginHost(
         synchronized(hookLock) {
             hookFailures.removeAll { it.pluginId == pluginId }
         }
+        failures.remove(pluginId)
+        failurePhases.remove(pluginId)
         rebuildAvailableServices()
         drainPending()
     }

@@ -4,4 +4,5 @@
     <item name="navigation_timetable" type="id" />
     <item name="navigation_navigation" type="id" />
     <item name="navigation_plugin" type="id" />
+    <item name="market_container" type="id" />
 </resources>
