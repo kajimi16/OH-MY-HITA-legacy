@@ -445,9 +445,11 @@ fun interface Decision<T> {
   `:api` 不引用 `:app` 工具类型。
 - **M4 决策 hook**：完成。两个试点已接线；hook 异常回退原值并进入诊断，提醒 payload 重新过长度/优先级收敛，
   同步 hook 禁止重定向 key/ids。
+- **F 诊断与守卫**：完成。运行时 diagnostics/composition 导出、hook/tool/declaredProvides 诊断、
+  market/boundary/ABI 守卫均已落地。
 
-剩余高风险项：release 诊断导出（F1）、UI 安装的完整原子回滚
-（已补旧 APK 备份/恢复但仍非跨进程事务）。
+剩余事项：真机整合包切换/AI 资源卡片交互需要真实索引与登录环境；
+UI 安装已补旧 APK 备份/恢复，但进程被杀时仍非跨进程事务。
 
 可执行任务拆分、Dumate 交接格式与验收命令见
 [`2026-11-18-plugin-remaining-work.md`](plans/2026-11-18-plugin-remaining-work.md)。
