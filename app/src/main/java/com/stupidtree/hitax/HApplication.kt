@@ -244,7 +244,7 @@ class HApplication : Application() {
                     return true
                 }
             })
-        pluginHost.installAll(PluginCatalog.plugins(this))
+        pluginHost.installAllWithDescriptors(PluginCatalog.installations(this))
         // 组件开关状态由系统持久化，可能与本地禁用标记不一致（如清除应用数据）；
         // 装配完成后按标记收敛一次，避免“插件已装配但组件仍禁用”。
         com.stupidtree.hitax.plugin.PluginCatalog.entries(this).forEach { entry ->

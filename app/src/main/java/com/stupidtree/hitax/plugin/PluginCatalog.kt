@@ -6,6 +6,7 @@ import com.stupidtree.hita.api.Plugin
 import com.stupidtree.hita.kernel.CompatibilityResult
 import com.stupidtree.hita.kernel.PluginCompatibility
 import com.stupidtree.hita.kernel.PluginFailurePhase
+import com.stupidtree.hita.kernel.PluginInstallation
 import com.stupidtree.hita.kernel.PluginRejectedException
 import com.stupidtree.hitax.HApplication
 
@@ -26,11 +27,13 @@ object PluginCatalog {
     fun entry(application: Application, pluginId: String): PluginEntry? =
         entries(application).firstOrNull { it.id == pluginId }
 
-    /** 启动装配用：过滤掉用户已卸载的插件。 */
-    fun plugins(application: Application): List<Plugin> =
+    /** 启动装配用：过滤掉用户已卸载的插件，并把 requires/provides 一并交给内核。 */
+    fun installations(application: Application): List<PluginInstallation> =
         entries(application)
             .filterNot { PluginPrefs.isDisabled(application, it.id) }
-            .mapNotNull { instantiate(it, application) }
+            .mapNotNull { entry ->
+                instantiate(entry, application)?.let { PluginInstallation(it, entry.descriptor()) }
+            }
 
     fun instantiate(entry: PluginEntry, application: Application): Plugin? {
         val result = PluginCompatibility.check(entry.artifactMeta())

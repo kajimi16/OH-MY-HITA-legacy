@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
 import com.stupidtree.hita.kernel.PluginArtifactMeta
+import com.stupidtree.hita.kernel.PluginDescriptor
 import com.stupidtree.hita.kernel.PluginHost
 import com.stupidtree.hita.kernel.PluginLoader
 import java.io.File
@@ -43,7 +44,13 @@ class PluginInstaller(
             val dex = File(dir, "plugin.dex")
             if (!dex.isFile) throw IllegalStateException("插件文件不存在，请重新安装")
             PluginLoader(host, logger = { m, e -> log(m, e) })
-                .loadAndInstall(dex, entry.entryClass, File(dir, "opt"), entry.artifactMeta())
+                .loadAndInstall(
+                    dex,
+                    entry.entryClass,
+                    File(dir, "opt"),
+                    entry.artifactMeta(),
+                    entry.descriptor(),
+                )
             saveDisabled(disabledIds() - id)
         } else {
             runCatching { host.uninstall(id) }
@@ -98,7 +105,13 @@ class PluginInstaller(
             check(newDex.renameTo(File(dir, "plugin.dex"))) { "插件落盘失败" }
 
             PluginLoader(host, logger = { m, e -> log(m, e) })
-                .loadAndInstall(File(dir, "plugin.dex"), entry.entryClass, File(dir, "opt"), entry.artifactMeta())
+                .loadAndInstall(
+                    File(dir, "plugin.dex"),
+                    entry.entryClass,
+                    File(dir, "opt"),
+                    entry.artifactMeta(),
+                    entry.descriptor(),
+                )
             if (!wasEnabled) host.uninstall(entry.id)
 
             saveInstalled(installed().filterNot { it.id == entry.id } + entry)
@@ -123,6 +136,7 @@ class PluginInstaller(
                             oldEntry.entryClass,
                             File(dir, "opt"),
                             oldEntry.artifactMeta(),
+                            oldEntry.descriptor(),
                         )
                     }.onFailure { log("rollback failed: ${entry.id}", it) }
                 }
@@ -153,7 +167,13 @@ class PluginInstaller(
             }
             runCatching {
                 PluginLoader(host, logger = { m, e -> log(m, e) })
-                    .loadAndInstall(dex, entry.entryClass, File(File(root, entry.id), "opt"), entry.artifactMeta())
+                    .loadAndInstall(
+                        dex,
+                        entry.entryClass,
+                        File(File(root, entry.id), "opt"),
+                        entry.artifactMeta(),
+                        entry.descriptor(),
+                    )
             }.onFailure { log("restore failed: ${entry.id}", it) }
         }
     }
@@ -165,6 +185,12 @@ class PluginInstaller(
         maxHostApi = maxHostApi,
         apiAbi = apiAbi,
         minSdk = minSdk,
+    )
+
+    private fun MarketPlugin.descriptor(): PluginDescriptor = PluginDescriptor(
+        id = id,
+        requires = requires,
+        provides = provides,
     )
 
     private fun fetch(entry: MarketPlugin, indexBase: String?, target: File) {

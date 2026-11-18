@@ -42,8 +42,17 @@ class PluginHost(
     private val failures = LinkedHashMap<String, Throwable>()
     private val failurePhases = LinkedHashMap<String, PluginFailurePhase>()
     private val serviceProviders = LinkedHashMap<String, String>()
+    private val descriptors = LinkedHashMap<String, PluginDescriptor>()
+    private val pendingPlugins = LinkedHashMap<String, PendingInstall>()
     private val waitingPlugins = LinkedHashMap<String, MutableSet<String>>()
     private val conflicts = ArrayList<PluginConflict>()
+    private val globalServices = LinkedHashSet<String>()
+    private val availableServices = LinkedHashSet<String>()
+
+    private data class PendingInstall(
+        val plugin: Plugin,
+        val descriptor: PluginDescriptor,
+    )
 
     /** 宿主只读的导航视图。 */
     val nav: NavRegistry = object : NavRegistry {
@@ -105,6 +114,10 @@ class PluginHost(
         plugins.forEach { install(it) }
     }
 
+    fun installAllWithDescriptors(installations: List<PluginInstallation>) {
+        installations.forEach { install(it.plugin, it.descriptor) }
+    }
+
     /** 记录一次发生在 `install()` 之前的拒绝，供诊断与测试读取。 */
     fun reject(
         pluginId: String,
@@ -117,10 +130,28 @@ class PluginHost(
     }
 
     fun install(plugin: Plugin) {
-        if (scopes.containsKey(plugin.id)) {
-            logger("plugin already installed: ${plugin.id}", null)
+        install(plugin, PluginDescriptor(plugin.id))
+    }
+
+    fun install(plugin: Plugin, descriptor: PluginDescriptor) {
+        if (scopes.containsKey(plugin.id) || pendingPlugins.containsKey(plugin.id)) {
+            logger("plugin already installed or waiting: ${plugin.id}", null)
             return
         }
+        val missing = descriptor.requires.filterNot { it in availableServices }
+        if (missing.isNotEmpty()) {
+            pendingPlugins[plugin.id] = PendingInstall(plugin, descriptor)
+            waitingPlugins[plugin.id] = missing.toMutableSet()
+            failures.remove(plugin.id)
+            failurePhases.remove(plugin.id)
+            logger("plugin waiting for services: ${plugin.id} -> ${missing.joinToString()}", null)
+            return
+        }
+        activate(plugin, descriptor)
+        drainPending()
+    }
+
+    private fun activate(plugin: Plugin, descriptor: PluginDescriptor) {
         if (plugin.requiresApi > HITA_API_VERSION) {
             reject(
                 plugin.id,
@@ -134,6 +165,7 @@ class PluginHost(
         installedPlugins[plugin.id] = plugin
         try {
             plugin.install(scope)
+            descriptors[plugin.id] = descriptor
             failures.remove(plugin.id)
             failurePhases.remove(plugin.id)
             logger("plugin installed: ${plugin.id}", null)
@@ -141,10 +173,32 @@ class PluginHost(
             scope.revokeAll()
             scopes.remove(plugin.id)
             installedPlugins.remove(plugin.id)
+            descriptors.remove(plugin.id)
             failures[plugin.id] = t
             failurePhases[plugin.id] = PluginFailurePhase.INSTALL
             logger("plugin install failed: ${plugin.id}", t)
         }
+    }
+
+    /** 按“依赖已满足”的波次继续激活等待中的插件。 */
+    private fun drainPending() {
+        var progressed: Boolean
+        do {
+            progressed = false
+            val iterator = pendingPlugins.entries.iterator()
+            while (iterator.hasNext()) {
+                val (id, pending) = iterator.next()
+                val missing = pending.descriptor.requires.filterNot { it in availableServices }
+                if (missing.isEmpty()) {
+                    iterator.remove()
+                    waitingPlugins.remove(id)
+                    activate(pending.plugin, pending.descriptor)
+                    progressed = true
+                } else {
+                    waitingPlugins[id] = missing.toMutableSet()
+                }
+            }
+        } while (progressed)
     }
 
     fun plugin(pluginId: String): Plugin? = installedPlugins[pluginId]
@@ -164,6 +218,20 @@ class PluginHost(
         scope.revokeAll()
         scopes.remove(pluginId)
         installedPlugins.remove(pluginId)
+        descriptors.remove(pluginId)
+        rebuildAvailableServices()
+        drainPending()
+    }
+
+    /** 服务可用集只由实际提供者重建，声明了 provides 但被冲突拒绝的插件不算可用。 */
+    private fun rebuildAvailableServices() {
+        availableServices.clear()
+        availableServices.addAll(globalServices)
+        serviceProviders.forEach { (service, provider) ->
+            if (provider != HOST_PROVIDER && scopes.containsKey(provider)) {
+                availableServices.add(service)
+            }
+        }
     }
 
     /**
@@ -173,6 +241,9 @@ class PluginHost(
     fun <T : Any> provideGlobal(key: ServiceKey<T>, impl: T) {
         services[key.name] = impl
         serviceProviders[key.name] = HOST_PROVIDER
+        globalServices.add(key.name)
+        availableServices.add(key.name)
+        drainPending()
     }
 
     fun <T : Any> service(key: ServiceKey<T>): T? = services[key.name] as? T
@@ -203,6 +274,14 @@ class PluginHost(
             .map { (id, missing) -> PluginWaiting(id, missing.toList().sorted()) }
             .sortedBy { it.id },
         conflicts = conflicts.toList(),
+        degraded = installedPlugins.keys
+            .mapNotNull { id ->
+                val missing = descriptors[id]?.requires
+                    ?.filterNot { it in availableServices }
+                    .orEmpty()
+                if (missing.isEmpty()) null else PluginDegraded(id, missing.sorted())
+            }
+            .sortedBy { it.id },
         services = serviceProviders.entries
             .map { (service, provider) -> PluginServiceBinding(service, provider) }
             .sortedBy { it.service },
@@ -219,16 +298,31 @@ class PluginHost(
         override fun <T : Any> service(key: ServiceKey<T>): T? = this@PluginHost.service(key)
 
         override fun <T : Any> provide(key: ServiceKey<T>, impl: T) {
+            val existingProvider = serviceProviders[key.name]
+            if (existingProvider != null && existingProvider != pluginId) {
+                conflicts += PluginConflict(key.name, existingProvider, pluginId)
+                logger(
+                    "service conflict: ${key.name} kept by $existingProvider, rejected $pluginId",
+                    null,
+                )
+                return
+            }
             val previous = services.put(key.name, impl)
             val previousProvider = serviceProviders.put(key.name, pluginId)
+            availableServices.add(key.name)
             undoStack += {
-                if (previous == null) {
-                    services.remove(key.name)
-                    serviceProviders.remove(key.name)
-                } else {
-                    services[key.name] = previous
-                    if (previousProvider == null) serviceProviders.remove(key.name)
-                    else serviceProviders[key.name] = previousProvider
+                // 宿主或其它插件后来接管该 key 时，卸载不能把它们的实现覆盖掉。
+                if (serviceProviders[key.name] == pluginId) {
+                    if (previous == null) {
+                        services.remove(key.name)
+                        serviceProviders.remove(key.name)
+                        availableServices.remove(key.name)
+                    } else {
+                        services[key.name] = previous
+                        if (previousProvider == null) serviceProviders.remove(key.name)
+                        else serviceProviders[key.name] = previousProvider
+                        availableServices.add(key.name)
+                    }
                 }
             }
         }

@@ -100,12 +100,13 @@ class PluginHostTest {
     }
 
     @Test
-    fun uninstallRestoresPreviousProvider() {
+    fun firstProviderWinsAndUninstallKeepsIt() {
         val host = newHost()
         host.install(TestPlugin("first") { ctx -> ctx.provide(key, "first-impl") })
         host.install(TestPlugin("second") { ctx -> ctx.provide(key, "second-impl") })
 
-        assertEquals("second-impl", host.service(key))
+        assertEquals("first-impl", host.service(key))
+        assertEquals("first", host.diagnostics().services.single().provider)
 
         host.uninstall("second")
         assertEquals("first-impl", host.service(key))

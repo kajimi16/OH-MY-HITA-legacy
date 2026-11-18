@@ -7,9 +7,9 @@ HITA 课表的插件化重构：微内核 + 插件，万物皆插件。
 [App 下载（Releases）](https://github.com/kajimi16/OH-MY-HITA/releases/latest) ·
 [国内镜像](https://ani2-ext.kajimi.cc/hita/releases/oh-my-hita-latest.apk)
 
-当前发布：`0.6.2`（API 7）。包名 `io.github.kajimi16.ohmyhita`，与原版 HITA 可共存安装。
+当前发布：`0.6.2`（API 8）。包名 `io.github.kajimi16.ohmyhita`，与原版 HITA 可共存安装。
 
-### API 7 能力
+### API 8 能力
 
 | 服务 | 能力 |
 |---|---|
@@ -151,7 +151,7 @@ HITA 课表的插件化重构：微内核 + 插件，万物皆插件。
 
 | 模块 | 角色 |
 |---|---|
-| `:api` | 插件契约：`Plugin` / `PluginContext` / `ServiceKey` / `NavEntry` / `SearchTab` / `SyncCodec`，以及 API 7 的提醒、窗口、成绩、考试、教师、培养方案、空教室、主题等服务接口 |
+| `:api` | 插件契约：`Plugin` / `PluginContext` / `ServiceKey` / `NavEntry` / `SearchTab` / `SyncCodec`，以及 API 8 的提醒、窗口、成绩、考试、教师、培养方案、空教室、主题等服务接口 |
 | `:kernel` | 微内核：`PluginHost` 负责装载/卸载、注册表与回滚；不依赖 Android，可直接跑 JVM 单测 |
 | `:app` | 宿主（shell）：`PluginHost` 装载/卸载插件并撤销其注册；`PluginCatalog` 是构建期插件清单 |
 | `:model` | 共享数据模型：实体与 DTO，宿主 / 契约 / 插件三方共用 |

@@ -59,13 +59,17 @@ class PluginDiagnosticsTest {
     }
 
     @Test
-    fun uninstallRestoresPreviousServiceOwner() {
+    fun laterProviderIsRejectedAndFirstOwnerSurvivesUninstall() {
         val host = newHost()
         val key = ServiceKey<String>("shared")
         host.install(TestPlugin("first") { ctx -> ctx.provide(key, "first") })
         host.install(TestPlugin("second") { ctx -> ctx.provide(key, "second") })
 
-        assertEquals("second", host.diagnostics().services.single().provider)
+        assertEquals("first", host.diagnostics().services.single().provider)
+        assertEquals(
+            listOf(PluginConflict("shared", "first", "second")),
+            host.diagnostics().conflicts,
+        )
 
         host.uninstall("second")
 

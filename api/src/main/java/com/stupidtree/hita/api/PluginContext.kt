@@ -14,7 +14,11 @@ interface PluginContext {
     fun <T : Any> service(key: ServiceKey<T>): T?
 
     /**
-     * 注册服务实现。同名服务已存在时覆盖，并在卸载时恢复上一个实现。
+     * 注册服务实现。
+     *
+     * 宿主通过 `provideGlobal` 提供的服务永远优先；插件之间先提供者胜出，
+     * 后来者对该 key 的注册会被拒绝并记录冲突，不再静默覆盖。
+     * 同一个插件重复注册同一 key 仍会覆盖自身旧实现，卸载时恢复。
      */
     fun <T : Any> provide(key: ServiceKey<T>, impl: T)
 
