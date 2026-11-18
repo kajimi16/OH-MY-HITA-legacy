@@ -199,6 +199,8 @@ class UiPluginManager(private val context: Context) {
             },
         )
         UiPluginStore.put(context, installed)
+        // 重装同一个 id 时旧记录可能仍在 disabled 集合里；安装完成应视为启用。
+        UiPluginStore.setEnabled(context, meta.id, true)
         return installed
     }
 

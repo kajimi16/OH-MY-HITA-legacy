@@ -331,20 +331,37 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
      * 已停用的内置插件会重新启用；未受信任的 dex 插件不会静默安装。
      */
     fun applyPreset(preset: MarketPreset) {
-        val previous = activePresetId.value
-            ?.let { id -> presets.value?.firstOrNull { it.id == id } }
-            ?.takeIf { it.id != preset.id }
         executor.execute {
             val minHost = preset.minHostApi ?: 1
             if (minHost > HITA_API_VERSION) {
                 message.postValue("整合包需要宿主 API $minHost，当前 $HITA_API_VERSION")
                 return@execute
             }
+            if (preset.refs().isEmpty()) {
+                message.postValue("整合包没有插件清单，已取消")
+                return@execute
+            }
+            // 在单线程执行器内读取，连续点击时第二次能看到第一次刚写入的 active preset。
+            val previous = PresetStateStore.activeId(ctx())
+                ?.let { id -> presets.value?.firstOrNull { it.id == id } }
+                ?.takeIf { it.id != preset.id }
             val ui = availableUiPlugins.value.orEmpty().associateBy { it.id }
             val dex = items.value.orEmpty().associateBy { it.entry.id }
             val installedUi = uiPluginManager.installed().associateBy { it.id }
             val installedDex = installer.installed().associateBy { it.id }
             val builtins = builtin.rows().associateBy { it.id }
+            val userDisabled = mapOf(
+                CompositionKind.UI to installedUi.values
+                    .filterNot { it.enabled }
+                    .map { it.id }
+                    .toSet(),
+                CompositionKind.DEX to installedDex.keys
+                    .filterNot { installer.isEnabled(it) }
+                    .toSet(),
+                CompositionKind.BUILTIN to builtins.keys
+                    .filter { PluginPrefs.isDisabled(ctx(), it) }
+                    .toSet(),
+            )
             val plan = CompositionResolver.resolve(
                 baseIds = builtins.keys,
                 next = preset,
@@ -362,6 +379,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                         .map { it.id }
                         .toSet(),
                 ),
+                userDisabled = userDisabled,
             )
             val requiredMissing = plan.blockingRequiredMissing()
             if (requiredMissing.isNotEmpty()) {
@@ -372,108 +390,107 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 )
                 return@execute
             }
-            var installed = 0
-            var enabled = 0
-            var skipped = 0
-            var reloadNeeded = false
-            val failures = mutableListOf<String>()
-            val optionalFailures = mutableListOf<String>()
-
-            fun addFailure(ref: PresetPluginRef, text: String) {
-                if (ref.isRequired()) failures += text else optionalFailures += text
-            }
-
-            for (ref in preset.refs()) {
-                when (ref.normalizedKind()) {
-                    "ui" -> {
-                        val row = installedUi[ref.id]
-                        if (row != null) {
-                            if (!row.enabled && uiPluginManager.setEnabled(ref.id, true)) {
-                                enabled++
-                                if (hasMainTab(row)) reloadNeeded = true
-                            } else {
-                                skipped++
+            val state = CompositionState(
+                installed = mapOf(
+                    CompositionKind.UI to installedUi.keys,
+                    CompositionKind.DEX to installedDex.keys,
+                    CompositionKind.BUILTIN to builtins.values
+                        .filter { it.installed }
+                        .map { it.id }
+                        .toSet(),
+                ),
+                enabled = mapOf(
+                    CompositionKind.UI to installedUi.values
+                        .filter { it.enabled }
+                        .map { it.id }
+                        .toSet(),
+                    CompositionKind.DEX to installedDex.keys
+                        .filter { installer.isEnabled(it) }
+                        .toSet(),
+                    CompositionKind.BUILTIN to builtins.values
+                        .filter { it.installed }
+                        .map { it.id }
+                        .toSet(),
+                ),
+            )
+            val compositionExecutor = object : CompositionExecutor {
+                override fun install(kind: CompositionKind, id: String): Result<Boolean> {
+                    return when (kind) {
+                        CompositionKind.UI -> {
+                            val entry = ui[id]
+                                ?: return Result.failure(IllegalStateException("索引缺失"))
+                            runCatching {
+                                installUiBlocking(entry, lastIndexBase, reloadOnMainTab = false)
+                            }.map { hasMainTab(it) }
+                        }
+                        CompositionKind.DEX -> {
+                            val entry = dex[id]?.entry
+                                ?: return Result.failure(IllegalStateException("索引缺失"))
+                            if (!trustStore.isVerified(entry.id)) {
+                                return Result.failure(
+                                    IllegalStateException("未受信任，需手动安装"),
+                                )
                             }
-                            continue
+                            val before = navIds()
+                            runCatching { installDexBlocking(entry); navIds() != before }
                         }
-                        val entry = ui[ref.id]
-                        if (entry == null) {
-                            if (ref.isRequired()) failures += "${ref.id}（索引缺失）"
-                            continue
-                        }
-                        runCatching { installUiBlocking(entry, lastIndexBase, reloadOnMainTab = false) }
-                            .onSuccess { if (hasMainTab(it)) reloadNeeded = true; installed++ }
-                            .onFailure { addFailure(ref, "${entry.name}：${it.message}") }
-                    }
-                    "dex" -> {
-                        val row = installedDex[ref.id]
-                        if (row != null) {
-                            if (!installer.isEnabled(ref.id) && runCatching {
-                                    installer.setEnabled(ref.id, true)
-                                }.isSuccess
-                            ) {
-                                enabled++
-                            } else {
-                                skipped++
-                            }
-                            continue
-                        }
-                        val entry = dex[ref.id]?.entry
-                        if (entry == null) {
-                            if (ref.isRequired()) failures += "${ref.id}（索引缺失）"
-                            continue
-                        }
-                        if (!trustStore.isVerified(entry.id)) {
-                            addFailure(ref, "${entry.name}（未受信任，需手动安装）")
-                            continue
-                        }
-                        runCatching { installDexBlocking(entry) }
-                            .onSuccess { installed++ }
-                            .onFailure { addFailure(ref, "${entry.name}：${it.message}") }
-                    }
-                    "builtin" -> {
-                        val row = builtins[ref.id]
-                        if (row == null) {
-                            if (ref.isRequired()) failures += "${ref.id}（内置缺失）"
-                            continue
-                        }
-                        if (row.installed) skipped++ else {
-                            runCatching { builtin.setEnabled(ref.id, true) }
-                                .onSuccess { reloadNeeded = true; installed++ }
-                                .onFailure { addFailure(ref, "${row.name}：${it.message}") }
+                        CompositionKind.BUILTIN -> runCatching {
+                            builtin.setEnabled(id, true).getOrThrow()
+                            true
                         }
                     }
-                    else -> if (ref.isRequired()) failures += "${ref.id}（未知类型）"
+                }
+
+                override fun enable(kind: CompositionKind, id: String): Result<Boolean> = when (kind) {
+                    CompositionKind.UI -> {
+                        val row = installedUi[id]
+                            ?: uiPluginManager.installed().firstOrNull { it.id == id }
+                        if (row != null && uiPluginManager.setEnabled(id, true)) {
+                            Result.success(hasMainTab(row))
+                        } else {
+                            Result.failure(IllegalStateException("启用失败"))
+                        }
+                    }
+                    CompositionKind.DEX -> {
+                        val before = navIds()
+                        runCatching {
+                            installer.setEnabled(id, true)
+                            navIds() != before
+                        }
+                    }
+                    CompositionKind.BUILTIN -> builtin.setEnabled(id, true).map { true }
+                }
+
+                override fun disable(kind: CompositionKind, id: String): Result<Boolean> = when (kind) {
+                    CompositionKind.UI ->
+                        if (uiPluginManager.setEnabled(id, false)) {
+                            Result.success(true)
+                        } else {
+                            Result.failure(IllegalStateException("停用失败"))
+                        }
+                    CompositionKind.DEX -> {
+                        val before = navIds()
+                        runCatching {
+                            installer.setEnabled(id, false)
+                            navIds() != before
+                        }
+                    }
+                    CompositionKind.BUILTIN -> builtin.setEnabled(id, false).map { true }
                 }
             }
-
-            var disabledOld = 0
-            if (failures.isEmpty() && previous != null) {
-                val keep = preset.refs().map { it.normalizedKind() to it.id }.toSet()
-                val installedUiNow = uiPluginManager.installed().associateBy { it.id }
-                val builtinsNow = builtin.rows().associateBy { it.id }
-                previous.refs()
-                    .filter { (it.normalizedKind() to it.id) !in keep }
-                    .forEach { ref ->
-                        when (ref.normalizedKind()) {
-                            "ui" -> {
-                                val row = installedUiNow[ref.id] ?: return@forEach
-                                if (row.enabled && uiPluginManager.setEnabled(ref.id, false)) {
-                                    disabledOld++
-                                    reloadNeeded = true
-                                }
-                            }
-                            "builtin" -> {
-                                val row = builtinsNow[ref.id] ?: return@forEach
-                                if (row.installed && builtin.setEnabled(ref.id, false).isSuccess) {
-                                    disabledOld++
-                                    reloadNeeded = true
-                                }
-                            }
-                        }
-                    }
-            }
-            if (failures.isEmpty()) {
+            val report = CompositionReconciler.execute(
+                plan = plan.forPresetApplication(),
+                state = state,
+                executor = compositionExecutor,
+            )
+            val installed = report.installed
+            val enabled = report.enabled
+            val skipped = report.skipped
+            val disabledOld = report.disabled
+            val reloadNeeded = report.reloadNeeded || previous?.shell != preset.shell
+            val failures = report.failures
+            val optionalFailures = report.optionalFailures
+            if (report.canActivate) {
                 PresetStateStore.setActive(ctx(), preset.id, preset.shell)
                 activePresetId.postValue(preset.id)
             }
