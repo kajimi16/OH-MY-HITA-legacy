@@ -1,8 +1,12 @@
 package com.stupidtree.hitax.shell.agent
 
 import android.content.Context
+import android.provider.OpenableColumns
 import android.text.method.LinkMovementMethod
 import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,7 +35,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -55,6 +59,7 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,6 +83,10 @@ import com.stupidtree.hitax.agent.settings.AiSettings
 import com.stupidtree.hitax.agent.settings.AiSettingsRepository
 import com.stupidtree.hitax.agent.settings.AiChatProvider
 import io.noties.markwon.Markwon
+import java.io.IOException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import io.noties.markwon.ext.latex.JLatexMathPlugin
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.ext.tables.TablePlugin
@@ -130,6 +139,7 @@ fun AgentChatScreen(viewModel: AgentChatViewModel, timetableId: String?) {
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
+            Spacer(Modifier.height(0.4.dp))
             Row(
                 Modifier.fillMaxWidth().padding(start = 12.dp, top = 0.dp, end = 12.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -175,7 +185,7 @@ fun AgentChatScreen(viewModel: AgentChatViewModel, timetableId: String?) {
                     Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = { showSettings = true }) {
-                    Icon(Icons.Default.Menu, "AI 设置", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Default.MenuBook, "AI 设置", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -198,11 +208,59 @@ fun AgentChatScreen(viewModel: AgentChatViewModel, timetableId: String?) {
             }
         }
 
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    val name = runCatching {
+                        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                            ?.use { cursor ->
+                                if (cursor.moveToFirst()) cursor.getString(0) else null
+                            }
+                    }.getOrNull() ?: uri.lastPathSegment.orEmpty().substringAfterLast('/')
+                    val mime = context.contentResolver.getType(uri).orEmpty()
+                    val ext = name.substringAfterLast('.', "").lowercase()
+                    val textLike = mime.startsWith("text/") || ext in setOf("txt", "md", "json", "xml", "csv", "html", "htm")
+                    if (!textLike) {
+                        Toast.makeText(context, "当前仅支持文本类附件", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    val content = runCatching {
+                        withContext(Dispatchers.IO) {
+                            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                                val buffer = CharArray(100_000)
+                                val count = reader.read(buffer)
+                                if (count <= 0) "" else String(buffer, 0, count)
+                            }
+                        }
+                    }.getOrElse {
+                        Toast.makeText(context, "附件读取失败", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }.orEmpty()
+                    if (content.isBlank()) {
+                        Toast.makeText(context, "附件为空", Toast.LENGTH_SHORT).show()
+                    } else {
+                        input = buildString {
+                            if (input.isNotBlank()) append(input).append("\n")
+                            append("[附件: ").append(name).append("]\n").append(content)
+                        }
+                    }
+                }
+            }
+        }
         Row(
             Modifier.fillMaxWidth().align(Alignment.BottomCenter)
-                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                .padding(start = 12.dp, end = 12.dp, bottom = 9.7.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
+            IconButton(
+                onClick = { attachmentPicker.launch("text/*") },
+                enabled = !viewModel.busy,
+                modifier = Modifier.size(44.dp).padding(end = 4.dp),
+            ) {
+                Icon(Icons.Default.Add, "添加文本附件", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             TextField(
                 value = input,
                 onValueChange = { input = it },
@@ -346,7 +404,7 @@ private fun AgentMessageBubble(message: AgentMessage, markwon: Markwon) {
 private fun AgentResourceCards(cards: List<AgentResourceCard>) {
     val context = LocalContext.current
     Column(
-        Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+        Modifier.padding(start = 12.dp, end = 12.dp, bottom = 9.7.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         cards.forEach { card ->
