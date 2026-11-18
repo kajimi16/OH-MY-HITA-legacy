@@ -5,6 +5,9 @@ import android.util.Log
 import com.google.gson.JsonParser
 import com.stupidtree.hita.api.ComposeUiPlugin
 import com.stupidtree.hita.api.HITA_API_VERSION
+import com.stupidtree.hita.kernel.CompatibilityResult
+import com.stupidtree.hita.kernel.PluginArtifactMeta
+import com.stupidtree.hita.kernel.PluginCompatibility
 import dalvik.system.DexClassLoader
 import java.io.File
 import java.security.MessageDigest
@@ -104,6 +107,9 @@ class UiPluginManager(private val context: Context) {
         val capabilities: List<String>,
         val mainTabs: List<com.stupidtree.hita.api.MainTabSpec> = emptyList(),
         val minSdk: Int = 0,
+        val minHostApi: Int? = null,
+        val maxHostApi: Int? = null,
+        val apiAbi: String? = null,
     )
 
     private fun requireValidId(id: String) {
@@ -131,11 +137,20 @@ class UiPluginManager(private val context: Context) {
             }
         }
         val meta = readMetadata(file)
-        require(meta.apiVersion <= HITA_API_VERSION) {
-            "插件需要 api ${meta.apiVersion}，当前宿主 $HITA_API_VERSION"
-        }
-        require(meta.minSdk <= android.os.Build.VERSION.SDK_INT) {
-            "插件需要 Android API ${meta.minSdk}，当前设备 ${android.os.Build.VERSION.SDK_INT}"
+        val compatibility = PluginCompatibility.check(
+            meta = PluginArtifactMeta(
+                id = meta.id,
+                requiresApi = meta.apiVersion,
+                minHostApi = meta.minHostApi,
+                maxHostApi = meta.maxHostApi,
+                apiAbi = meta.apiAbi,
+                minSdk = meta.minSdk,
+            ),
+            hostApi = HITA_API_VERSION,
+            sdkInt = android.os.Build.VERSION.SDK_INT,
+        )
+        if (compatibility is CompatibilityResult.Rejected) {
+            error("插件不兼容：${compatibility.reasons.joinToString("; ")}")
         }
         require(meta.composeVersion.isBlank() || meta.composeVersion == COMPOSE_RUNTIME_VERSION) {
             "插件基于 Compose ${meta.composeVersion}，宿主运行时为 $COMPOSE_RUNTIME_VERSION"
@@ -233,6 +248,9 @@ class UiPluginManager(private val context: Context) {
                 capabilities = obj.getAsJsonArray("capabilities")
                     ?.mapNotNull { it.asString } ?: emptyList(),
                 minSdk = obj.get("minSdk")?.asInt ?: 0,
+                minHostApi = obj.get("minHostApi")?.asInt,
+                maxHostApi = obj.get("maxHostApi")?.asInt,
+                apiAbi = obj.get("apiAbi")?.asString,
                 mainTabs = obj.getAsJsonArray("mainTabs")
                     ?.mapNotNull { element ->
                         runCatching {

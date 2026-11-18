@@ -21,6 +21,12 @@ data class MarketPlugin(
     val size: Long = 0L,
     /** 安装所需的最低宿主 API；null 表示旧索引未声明，按 1 处理。 */
     val minHostApi: Int? = null,
+    /** 兼容的最高宿主 API；null 表示不设上限。 */
+    val maxHostApi: Int? = null,
+    /** `:api` ABI 指纹；null 表示旧索引未声明。 */
+    val apiAbi: String? = null,
+    /** 插件要求的最低 Android API；null 表示不限制。 */
+    val minSdk: Int? = null,
     /** 市场展示元数据，均可缺省。 */
     val author: String? = null,
     val tags: List<String>? = null,

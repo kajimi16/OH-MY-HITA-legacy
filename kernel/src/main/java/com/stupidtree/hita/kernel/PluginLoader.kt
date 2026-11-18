@@ -23,8 +23,24 @@ class PluginLoader(
      * @param dexFile       已下载并校验过的 dex
      * @param entryClassName 实现 [Plugin] 的类全名
      * @param optimizedDir  该插件专属的 odex 目录
+     * @param meta          加载前元数据；提供时先做兼容性拒绝，再碰 dex/类加载
      */
-    fun loadAndInstall(dexFile: File, entryClassName: String, optimizedDir: File): Plugin {
+    fun loadAndInstall(
+        dexFile: File,
+        entryClassName: String,
+        optimizedDir: File,
+        meta: PluginArtifactMeta? = null,
+    ): Plugin {
+        if (meta != null) {
+            when (val result = PluginCompatibility.check(meta)) {
+                is CompatibilityResult.Rejected -> {
+                    val error = PluginRejectedException(meta.id, result.reasons)
+                    host.reject(meta.id, error, PluginFailurePhase.COMPATIBILITY)
+                    throw error
+                }
+                CompatibilityResult.Compatible -> Unit
+            }
+        }
         require(dexFile.isFile) { "plugin dex missing: ${dexFile.absolutePath}" }
         optimizedDir.mkdirs()
 
@@ -38,15 +54,21 @@ class PluginLoader(
         val clazz = try {
             Class.forName(entryClassName, true, loader)
         } catch (e: LinkageError) {
-            throw IllegalStateException("插件与宿主 API 不兼容（可能是 api 版本不匹配）：$entryClassName", e)
+            val error = IllegalStateException("插件与宿主 API 不兼容（可能是 api 版本不匹配）：$entryClassName", e)
+            host.reject(meta?.id ?: entryClassName, error, PluginFailurePhase.LOAD)
+            throw error
         } catch (e: ClassNotFoundException) {
-            throw IllegalStateException("插件中找不到入口类：$entryClassName", e)
+            val error = IllegalStateException("插件中找不到入口类：$entryClassName", e)
+            host.reject(meta?.id ?: entryClassName, error, PluginFailurePhase.LOAD)
+            throw error
         }
 
         val plugin = try {
             clazz.getDeclaredConstructor().newInstance() as Plugin
         } catch (e: ClassCastException) {
-            throw IllegalStateException("入口类未实现 Plugin 接口：$entryClassName", e)
+            val error = IllegalStateException("入口类未实现 Plugin 接口：$entryClassName", e)
+            host.reject(meta?.id ?: entryClassName, error, PluginFailurePhase.LOAD)
+            throw error
         }
 
         host.install(plugin)
