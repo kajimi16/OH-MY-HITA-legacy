@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.stupidtree.hitax.R
 import com.stupidtree.hitax.shell.homework.HomeworkItem
 import com.stupidtree.hitax.shell.homework.HomeworkState
@@ -139,17 +140,17 @@ internal fun HomeworkScreen(viewModel: HomeworkViewModel) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().imePadding(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 132.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 19.2.dp, bottom = 132.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item(key = "title") {
                     Text(
                         "待办",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 8.dp),
+                        fontSize = 24.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        modifier = Modifier.padding(top = 1.5.dp),
                     )
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(18.5.dp))
                 }
                 item(key = "date") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
