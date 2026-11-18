@@ -45,6 +45,19 @@ data class PluginDegraded(
     val missing: List<String>,
 )
 
+data class PluginToolConflict(
+    val tool: String,
+    val existingPluginId: String,
+    val rejectedPluginId: String,
+)
+
+data class PluginHookFailure(
+    val hook: String,
+    val pluginId: String,
+    val listenerIndex: Int,
+    val message: String,
+)
+
 /**
  * 内核当前状态的一次不可变快照。
  *
@@ -58,4 +71,6 @@ data class PluginDiagnostics(
     val conflicts: List<PluginConflict>,
     val degraded: List<PluginDegraded>,
     val services: List<PluginServiceBinding>,
+    val hookFailures: List<PluginHookFailure> = emptyList(),
+    val toolConflicts: List<PluginToolConflict> = emptyList(),
 )

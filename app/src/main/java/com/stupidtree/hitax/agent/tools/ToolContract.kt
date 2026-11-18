@@ -1,6 +1,7 @@
 package com.stupidtree.hitax.agent.tools
 
 import com.stupidtree.hitax.agent.core.AgentTraceEvent
+import com.stupidtree.hitax.agent.model.AgentResourceCard
 
 enum class ToolParamType { STRING, INTEGER, NUMBER, BOOLEAN }
 
@@ -24,21 +25,32 @@ data class ToolSpec(
     val name: String,
     val description: String,
     val parameters: List<ToolParam> = emptyList(),
+    /** 结果 JSON Schema；为空表示不向模型声明固定输出形状。 */
+    val outputSchemaJson: String = "",
     val maxObservationChars: Int = 1800,
     /** 协作式超时：同步工具若不响应线程中断，仍可能继续运行。 */
     val timeoutMs: Long = 15_000,
+    /** 工具失败后重试不会产生重复副作用。 */
+    val retrySafe: Boolean = false,
+    /** 允许模型把单个必填 string 参数直接写成原文，而不是 JSON 对象。 */
+    val allowRawString: Boolean = false,
+    val presentCall: (ToolCall) -> String = { "${it.name}(${it.actionInput.take(120)})" },
+    val presentResult: (ToolExecution) -> String = { it.text.take(160) },
     val tool: SuspendingReActTool,
 )
 
 data class ToolCall(
     val name: String,
     val actionInput: String,
+    val userMessage: String = "",
 )
 
 data class ToolExecution(
     val text: String,
     val error: Boolean = false,
     val truncated: Boolean = false,
+    val retryable: Boolean = false,
+    val cards: List<AgentResourceCard> = emptyList(),
 )
 
 sealed class ToolDecision {

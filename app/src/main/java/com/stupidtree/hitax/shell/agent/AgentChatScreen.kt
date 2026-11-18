@@ -1,5 +1,6 @@
 package com.stupidtree.hitax.shell.agent
 
+import android.content.Context
 import android.text.method.LinkMovementMethod
 import android.widget.TextView
 import androidx.compose.foundation.background
@@ -67,8 +68,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.stupidtree.hita.api.ResourceUiService
+import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.agent.AgentChatViewModel
 import com.stupidtree.hitax.agent.AgentMessage
+import com.stupidtree.hitax.agent.model.AgentResourceCard
 import com.stupidtree.hitax.agent.settings.AiSettings
 import com.stupidtree.hitax.agent.settings.AiSettingsRepository
 import com.stupidtree.hitax.agent.settings.AiChatProvider
@@ -326,10 +330,65 @@ private fun AgentMessageBubble(message: AgentMessage, markwon: Markwon) {
                     modifier = Modifier.padding(12.dp),
                 )
             } else {
-                MarkdownMessageText(message.text, markwon, MaterialTheme.colorScheme.onSurface)
+                Column {
+                    MarkdownMessageText(message.text, markwon, MaterialTheme.colorScheme.onSurface)
+                    if (message.cards.isNotEmpty()) {
+                        AgentResourceCards(message.cards)
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun AgentResourceCards(cards: List<AgentResourceCard>) {
+    val context = LocalContext.current
+    Column(
+        Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        cards.forEach { card ->
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                ),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                modifier = Modifier.fillMaxWidth().clickable { openResourceCard(context, card) },
+            ) {
+                Column(Modifier.padding(10.dp)) {
+                    Text(
+                        card.title.ifBlank { card.path },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    if (card.subtitle.isNotBlank()) {
+                        Text(
+                            card.subtitle,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun openResourceCard(context: Context, card: AgentResourceCard) {
+    if (card.sourceTag != "HOA" && card.source != "HOA") return
+    val host = context.applicationContext as? HApplication ?: return
+    val service = host.pluginHost.service(ResourceUiService.KEY) ?: return
+    val owner = context as? androidx.lifecycle.LifecycleOwner ?: return
+    service.openReadme(
+        context,
+        owner,
+        card.courseCode.takeIf { it.isNotBlank() },
+        card.title.takeIf { it.isNotBlank() },
+    )
 }
 
 @Composable

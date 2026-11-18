@@ -3,10 +3,12 @@ package com.stupidtree.hitax.agent.llm
 import android.app.Application
 import com.stupidtree.hita.api.PluginToolHandler
 import com.stupidtree.hita.api.PluginToolSpec
+import com.stupidtree.hita.api.normalizedType
 import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.agent.core.AgentTraceEvent
+import com.stupidtree.hitax.agent.model.AgentResourceCard
+import com.stupidtree.hita.kernel.PluginOrigin
 import com.stupidtree.hitax.market.PluginTrustStore
-import com.stupidtree.hitax.plugin.PluginCatalog
 import com.stupidtree.hitax.agent.tools.ReActToolInput
 import com.stupidtree.hitax.agent.tools.ReActToolRegistry
 import com.stupidtree.hitax.agent.tools.SuspendingReActTool
@@ -14,6 +16,7 @@ import com.stupidtree.hitax.agent.tools.ToolParam
 import com.stupidtree.hitax.agent.tools.ToolParamType
 import com.stupidtree.hitax.agent.tools.ToolSpec
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 
 /** 宿主版 ReAct：只依赖已移植的工具注册表，不依赖上游 EASRepository。 */
@@ -22,13 +25,28 @@ object ShellChatService {
 
     private fun registry(application: Application): ReActToolRegistry {
         val registry = ReActToolRegistry.createDefault()
+        // 统一脱敏：工具结果可能回显密钥/令牌；失败则 fail-closed 由 registry 处理。
+        registry.guard { call ->
+            if (call.name == "submit_review" &&
+                listOf("评价", "点评", "review").none { it in call.userMessage.lowercase() }
+            ) {
+                com.stupidtree.hitax.agent.tools.ToolDecision.Deny("提交评价需要用户明确要求")
+            } else {
+                com.stupidtree.hitax.agent.tools.ToolDecision.Allow
+            }
+        }
+        registry.postProcess { _, result ->
+            val redacted = result.text
+                .replace(Regex("""sk-[A-Za-z0-9]{16,}"""), "sk-***")
+                .replace(Regex("""(?i)bearer\s+[a-z0-9._-]{16,}"""), "Bearer ***")
+            if (redacted == result.text) null else result.copy(text = redacted)
+        }
         val host = (application as? HApplication)?.pluginHost ?: return registry
         val trustStore = PluginTrustStore(application)
         host.pluginTools()
             .filter { binding ->
-                // 内置插件随 APK 发布；第三方 dex 插件必须过 verified 白名单。
-                PluginCatalog.entry(application, binding.pluginId) != null ||
-                    trustStore.isVerified(binding.pluginId)
+                // 来源由内核记录；内置插件随 APK 发布，第三方 dex 插件必须过 verified 白名单。
+                binding.origin == PluginOrigin.BUILTIN || trustStore.isVerified(binding.pluginId)
             }
             .forEach { binding ->
                 val spec = binding.spec.toToolSpec(binding.handler) ?: return@forEach
@@ -41,7 +59,7 @@ object ShellChatService {
     private fun PluginToolSpec.toToolSpec(handler: PluginToolHandler): ToolSpec? {
         if (name.isBlank() || description.isBlank()) return null
         val params = parameters.map { param ->
-            val type = when (param.type.lowercase()) {
+            val type = when (param.normalizedType()) {
                 "integer" -> ToolParamType.INTEGER
                 "number" -> ToolParamType.NUMBER
                 "boolean" -> ToolParamType.BOOLEAN
@@ -60,9 +78,14 @@ object ShellChatService {
             name = name,
             description = description,
             parameters = params,
+            outputSchemaJson = outputSchemaJson.take(2_000),
             maxObservationChars = maxObservationChars.coerceIn(1, 20_000),
             timeoutMs = timeoutMs.coerceIn(1, 120_000),
-            tool = SuspendingReActTool { input -> handler.execute(input.actionInput) },
+            retrySafe = retrySafe,
+            allowRawString = allowRawString,
+            tool = SuspendingReActTool { input ->
+                runInterruptible(Dispatchers.IO) { handler.execute(input.actionInput) }
+            },
         )
     }
 
@@ -78,6 +101,7 @@ object ShellChatService {
         val messages = mutableListOf(ChatMessage(role = "system", content = systemPrompt(toolRegistry)))
         messages += history
         val observations = mutableListOf<String>()
+        val cards = mutableListOf<AgentResourceCard>()
 
         repeat(MAX_STEPS) { step ->
             onTrace(AgentTraceEvent(stage = "react_step", message = "步骤 ${step + 1}/$MAX_STEPS", payload = ""))
@@ -95,7 +119,11 @@ object ShellChatService {
             val parsed = parseStep(content)
             if (parsed.action == "答案" || parsed.action.isBlank()) {
                 val answer = parsed.thought.ifBlank { content }.trim()
-                return@withContext LlmChatResult.Success(answer, observations.joinToString("\n"))
+                return@withContext LlmChatResult.Success(
+                    answer,
+                    observations.joinToString("\n"),
+                    cards.distinctBy { "${it.source}|${it.path}|${it.courseCode}|${it.title}" }.take(20),
+                )
             }
             val toolInput = ReActToolInput(
                 actionInput = parsed.actionInput,
@@ -104,9 +132,29 @@ object ShellChatService {
                 timetableId = timetableId,
                 onTrace = onTrace,
             )
-            val observation = toolRegistry.execute(parsed.action, toolInput, onTrace).text
+            val execution = toolRegistry.execute(parsed.action, toolInput, onTrace)
+            if (!execution.error) cards += execution.cards
+            val observation = execution.text
             observations += "【${parsed.action}】\n$observation"
-            onTrace(AgentTraceEvent(stage = "observation", message = "观察：${observation.take(80)}", payload = observation.take(500)))
+            val presentation = toolRegistry.spec(parsed.action)
+                ?.presentResult
+                ?.invoke(execution)
+                ?: observation.take(80)
+            val meta = buildList {
+                if (execution.error) add("error")
+                if (execution.truncated) add("truncated")
+                if (execution.retryable) add("retryable")
+            }.joinToString(",")
+            onTrace(
+                AgentTraceEvent(
+                    stage = "observation",
+                    message = "观察：${presentation.take(80)}",
+                    payload = buildString {
+                        if (meta.isNotEmpty()) append("[$meta] ")
+                        append(observation.take(500))
+                    },
+                )
+            )
             messages += ChatMessage(role = "assistant", content = content)
             messages += ChatMessage(role = "user", content = "观察结果：$observation")
         }
@@ -116,6 +164,7 @@ object ShellChatService {
                 append(observations.takeLast(4).joinToString("\n\n"))
             }.trim(),
             observations.joinToString("\n"),
+            cards.distinctBy { "${it.source}|${it.path}|${it.courseCode}|${it.title}" }.take(20),
         )
     }
 
@@ -148,6 +197,10 @@ object ShellChatService {
 }
 
 sealed class LlmChatResult {
-    data class Success(val text: String, val thinking: String? = null) : LlmChatResult()
+    data class Success(
+        val text: String,
+        val thinking: String? = null,
+        val cards: List<AgentResourceCard> = emptyList(),
+    ) : LlmChatResult()
     data class Error(val error: String) : LlmChatResult()
 }

@@ -5,6 +5,7 @@ import com.stupidtree.hita.api.PluginContext
 import com.stupidtree.hita.api.PluginToolHandler
 import com.stupidtree.hita.api.PluginToolParam
 import com.stupidtree.hita.api.PluginToolSpec
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -28,6 +29,50 @@ class PluginToolTest {
         description = "say hello",
         parameters = listOf(PluginToolParam("name", required = true)),
     )
+
+    @Test
+    fun invalidPluginToolSpecFailsThePluginInstall() {
+        val host = PluginHost(tmp.newFolder("plugins"))
+
+        host.install(TestPlugin("bad") { ctx ->
+            ctx.tools.register(spec.copy(name = ""), PluginToolHandler { "ok" })
+        })
+
+        assertFalse(host.isInstalled("bad"))
+        assertTrue(host.failures().containsKey("bad"))
+        assertTrue(host.pluginTools().isEmpty())
+    }
+
+    @Test
+    fun normalizedToolNameConflictIsVisibleAndFirstWins() {
+        val host = PluginHost(tmp.newFolder("plugins"))
+        host.install(TestPlugin("first") { ctx ->
+            ctx.tools.register(spec.copy(name = "my-tool"), PluginToolHandler { "first" })
+        })
+        host.install(TestPlugin("second") { ctx ->
+            ctx.tools.register(spec.copy(name = "my_tool"), PluginToolHandler { "second" })
+        })
+
+        assertEquals("first", host.pluginTools().single().handler.execute("{}"))
+        assertEquals(
+            listOf(PluginToolConflict("my_tool", "first", "second")),
+            host.diagnostics().toolConflicts,
+        )
+    }
+
+    @Test
+    fun pluginToolKeepsItsOrigin() {
+        val host = PluginHost(tmp.newFolder("plugins"))
+
+        host.install(
+            TestPlugin("builtin") { ctx ->
+                ctx.tools.register(spec, PluginToolHandler { "ok" })
+            },
+            PluginDescriptor("builtin", origin = PluginOrigin.BUILTIN),
+        )
+
+        assertEquals(PluginOrigin.BUILTIN, host.pluginTools().single().origin)
+    }
 
     @Test
     fun pluginContributedToolIsVisibleAndRemovedOnUninstall() {

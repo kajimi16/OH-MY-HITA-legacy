@@ -42,6 +42,8 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="com.stupidtree.hitax.DEBUG_DUMP_PLUGINS" />
+                <action android:name="com.stupidtree.hitax.DEBUG_DUMP_COMPOSITION" />
+                <action android:name="com.stupidtree.hitax.DEBUG_SET_KILL_SWITCH" />
             </intent-filter>
         </receiver>
 

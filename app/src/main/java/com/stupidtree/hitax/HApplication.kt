@@ -247,10 +247,14 @@ class HApplication : Application() {
         pluginHost.installAllWithDescriptors(PluginCatalog.installations(this))
         // 组件开关状态由系统持久化，可能与本地禁用标记不一致（如清除应用数据）；
         // 装配完成后按标记收敛一次，避免“插件已装配但组件仍禁用”。
+        val builtinSafety = com.stupidtree.hitax.market.CompositionStore.killSwitches(this)
         com.stupidtree.hitax.plugin.PluginCatalog.entries(this).forEach { entry ->
-            com.stupidtree.hitax.plugin.PluginComponents.setEnabled(
-                this, entry.id, !com.stupidtree.hitax.plugin.PluginPrefs.isDisabled(this, entry.id)
-            )
+            val enabled = !com.stupidtree.hitax.plugin.PluginPrefs.isDisabled(this, entry.id) &&
+                com.stupidtree.hitax.market.CompositionTarget(
+                    com.stupidtree.hitax.market.CompositionKind.BUILTIN,
+                    entry.id,
+                ) !in builtinSafety
+            com.stupidtree.hitax.plugin.PluginComponents.setEnabled(this, entry.id, enabled)
         }
         // 恢复上次安装的运行时插件（T1）；单个失败不影响其它插件。
         com.stupidtree.hitax.market.PluginInstaller(this, pluginHost).restore()
@@ -264,10 +268,19 @@ class HApplication : Application() {
 
             @WorkerThread
             override fun saveData(key: String, ids: List<String>, data: List<String>) {
-                val original = com.stupidtree.hita.api.SyncRecord(key, ids, data)
-                val record = runCatching {
+                val expectedIds = ids.toList()
+                val expectedData = data.toList()
+                val original = com.stupidtree.hita.api.SyncRecord(key, ids.toList(), data.toList())
+                val hooked = runCatching {
                     pluginHost.runHook(com.stupidtree.hita.api.HookKeys.SYNC_PULL_RECORD, original)
-                }.getOrElse { original }
+                }.getOrNull() ?: original
+                // hook 只允许改写 data；重定向 key/ids 会破坏信任边界。
+                val record = com.stupidtree.hitax.data.SyncHookPolicy.accept(
+                    original,
+                    expectedIds,
+                    expectedData,
+                    hooked,
+                )
                 pluginHost.sync.get(record.key)?.save(record.ids, record.data)
             }
 
@@ -312,11 +325,26 @@ class HApplication : Application() {
 
     /** 供 debug 广播导出内核诊断；同时写 logcat 与 filesDir/diagnostics/plugins.json。 */
     fun dumpPluginDiagnostics(): String {
-        val json = com.google.gson.Gson().toJson(pluginHost.diagnostics())
+        val gson = com.google.gson.Gson()
+        val json = gson.toJson(pluginHost.diagnostics())
         val dir = java.io.File(filesDir, "diagnostics").apply { mkdirs() }
         java.io.File(dir, "plugins.json").writeText(json)
-        android.util.Log.i(TAG, "plugin diagnostics: $json")
-        return json
+        val composition = com.stupidtree.hitax.market.CompositionStore.read(this)
+        val combined = com.google.gson.JsonObject().apply {
+            add("plugins", gson.toJsonTree(pluginHost.diagnostics()))
+            if (!composition.isNullOrBlank()) addProperty("composition", composition)
+        }.toString()
+        java.io.File(dir, "diagnostics.json").writeText(combined)
+        android.util.Log.i(TAG, "plugin diagnostics: $combined")
+        return combined
+    }
+
+    /** 最近一次 applyPreset 的 desired/actual 快照；没有应用过整合包时返回空。 */
+    fun dumpCompositionDiagnostics(): String {
+        val text = com.stupidtree.hitax.market.CompositionStore.read(this)
+            ?: "no composition snapshot; apply a preset first"
+        android.util.Log.i(TAG, "composition diagnostics: $text")
+        return text
     }
 
     companion object {

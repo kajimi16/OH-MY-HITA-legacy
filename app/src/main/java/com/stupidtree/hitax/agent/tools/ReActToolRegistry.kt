@@ -1,8 +1,11 @@
 package com.stupidtree.hitax.agent.tools
 
 import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.stupidtree.hita.api.normalizeToolName
 import com.stupidtree.hitax.agent.core.AgentTraceEvent
+import com.stupidtree.hitax.agent.model.AgentResourceCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -47,12 +50,25 @@ class ReActToolRegistry {
         }
         val required = spec.parameters.filter { it.required }.map { it.name }
         val details = spec.parameters
-            .filter { it.description.isNotBlank() }
-            .joinToString("；") { "${it.name}=${it.description}" }
+            .filter { it.description.isNotBlank() || it.enumValues.isNotEmpty() }
+            .joinToString("；") { param ->
+                buildString {
+                    if (param.description.isNotBlank()) append("${param.name}=${param.description}")
+                    if (param.enumValues.isNotEmpty()) {
+                        if (isNotEmpty()) append("，")
+                        append("${param.name} 可选值：${param.enumValues.joinToString(",")}")
+                    }
+                }
+            }
         buildString {
             append("- ${spec.name}：${spec.description} 动作输入 {$params}")
             if (required.isNotEmpty()) append("；必填：${required.joinToString(",")}")
             if (details.isNotEmpty()) append("；说明：$details")
+            val aliases = spec.parameters.flatMap { param -> param.aliases.map { "$it→${param.name}" } }
+            if (aliases.isNotEmpty()) append("；别名：${aliases.joinToString(",")}")
+            if (spec.outputSchemaJson.isNotBlank()) {
+                append("；输出 schema：${spec.outputSchemaJson.replace(Regex("\\s+"), " ").take(240)}")
+            }
             append("。")
         }
     }
@@ -65,10 +81,24 @@ class ReActToolRegistry {
         val spec = specs[normalizeName(name)]
             ?: return ToolExecution("未知工具：$name", error = true)
         val cleaned = clean(input.actionInput)
-        val call = ToolCall(spec.name, cleaned)
-        return runPipeline(spec, call, onTrace) {
-            spec.tool.execute(input.copy(actionInput = cleaned))
+        val call = ToolCall(spec.name, cleaned, input.userMessage)
+        val cards = mutableListOf<AgentResourceCard>()
+        val result = runPipeline(spec, call, onTrace) {
+            spec.tool.execute(
+                input.copy(
+                    actionInput = cleaned,
+                    onResourceCards = { produced ->
+                        cards += produced
+                        input.onResourceCards(produced)
+                    },
+                )
+            )
         }
+        if (result.error) return result.copy(cards = emptyList())
+        val merged = (result.cards + cards)
+            .distinctBy { "${it.source}|${it.path}|${it.courseCode}|${it.title}" }
+            .take(20)
+        return if (merged == result.cards) result else result.copy(cards = merged)
     }
 
     internal suspend fun runPipeline(
@@ -102,19 +132,45 @@ class ReActToolRegistry {
             return ToolExecution("参数错误：${argumentErrors.joinToString("；")}", error = true)
         }
 
-        var result = try {
-            onTrace(AgentTraceEvent(stage = "tool", message = "执行工具：${spec.name}", payload = ""))
+        suspend fun invokeOnce(): ToolExecution = try {
+            onTrace(AgentTraceEvent(stage = "tool", message = spec.presentCall(call), payload = ""))
             ToolExecution(withTimeout(spec.timeoutMs) { invoke() }.orEmpty())
         } catch (e: TimeoutCancellationException) {
-            ToolExecution("工具超时：${spec.name}", error = true)
+            ToolExecution("工具超时：${spec.name}", error = true, retryable = spec.retrySafe)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            ToolExecution("工具执行失败：${e.message ?: e::class.java.simpleName}", error = true)
+            ToolExecution(
+                "工具执行失败：${e.message ?: e::class.java.simpleName}",
+                error = true,
+                retryable = spec.retrySafe,
+            )
+        }
+
+        var result = invokeOnce()
+        if (result.error && spec.retrySafe) {
+            onTrace(
+                AgentTraceEvent(
+                    stage = "tool_retry",
+                    message = "重试工具：${spec.name}",
+                    payload = result.text.take(200),
+                )
+            )
+            result = invokeOnce()
         }
 
         for (processor in postProcessors) {
-            result = runCatching { processor.process(call, result) }.getOrNull() ?: result
+            val processed = runCatching { processor.process(call, result) }.getOrElse {
+                onTrace(
+                    AgentTraceEvent(
+                        stage = "tool_postprocess",
+                        message = "工具结果后处理失败：${it.message ?: it::class.java.simpleName}",
+                        payload = "",
+                    )
+                )
+                return ToolExecution("工具结果后处理失败", error = true)
+            }
+            if (processed != null) result = processed
         }
 
         if (result.text.length > spec.maxObservationChars) {
@@ -128,10 +184,21 @@ class ReActToolRegistry {
 
     internal fun validate(spec: ToolSpec, actionInput: String): List<String> {
         val cleaned = clean(actionInput)
-        // 兼容历史行为：非 JSON 原文交给工具自行解析，不在这里拦。
-        if (!cleaned.startsWith("{")) return emptyList()
-        val json = runCatching { JsonParser.parseString(cleaned).asJsonObject }.getOrNull()
-            ?: return listOf("动作输入不是合法 JSON")
+        val json = when {
+            cleaned.startsWith("{") -> runCatching {
+                JsonParser.parseString(cleaned).asJsonObject
+            }.getOrNull() ?: return listOf("动作输入不是合法 JSON 对象")
+            cleaned.isBlank() -> JsonObject()
+            spec.parameters.isEmpty() -> JsonObject()
+            spec.allowRawString -> {
+                val required = spec.parameters.filter { it.required }
+                if (required.size != 1 || required.single().type != ToolParamType.STRING) {
+                    return listOf("动作输入必须是 JSON 对象")
+                }
+                JsonObject().apply { addProperty(required.single().name, cleaned) }
+            }
+            else -> return listOf("动作输入必须是 JSON 对象")
+        }
 
         val errors = mutableListOf<String>()
         spec.parameters.forEach { param ->
@@ -143,6 +210,8 @@ class ReActToolRegistry {
             val value = json.get(presentKey)
             if (!matchesType(value, param.type)) {
                 errors += "参数 ${param.name} 应为 ${param.type.name.lowercase()}"
+            } else if (param.required && param.type == ToolParamType.STRING && value.asString.isBlank()) {
+                errors += "参数 ${param.name} 不能为空"
             } else if (param.enumValues.isNotEmpty() && value.asString !in param.enumValues) {
                 errors += "参数 ${param.name} 必须是 ${param.enumValues.joinToString("/")}"
             }
@@ -173,18 +242,14 @@ class ReActToolRegistry {
             .trim()
 
     private fun ToolParam.placeholder(): String = when (type) {
-        ToolParamType.STRING -> if (enumValues.isEmpty()) "\"...\"" else "\"${enumValues.joinToString("|")}\""
+        ToolParamType.STRING -> if (enumValues.isEmpty()) "\"...\"" else "\"${enumValues.first()}\""
         ToolParamType.INTEGER -> "0"
         ToolParamType.NUMBER -> "0"
         ToolParamType.BOOLEAN -> "false"
     }
 
     companion object {
-        fun normalizeName(name: String): String {
-            return name.trim().lowercase()
-                .replace(Regex("[^a-z0-9]+"), "_")
-                .trim('_')
-        }
+        fun normalizeName(name: String): String = normalizeToolName(name)
 
         fun createDefault(): ReActToolRegistry = ReActToolRegistry().apply {
             add(
@@ -229,6 +294,7 @@ class ReActToolRegistry {
                         ToolParam("name", required = true, description = "教师姓名", aliases = listOf("teacher_name")),
                     ),
                     timeoutMs = 30_000,
+                    allowRawString = true,
                     tool = SearchTeacherTool(),
                 ),
             )
@@ -239,6 +305,7 @@ class ReActToolRegistry {
                     parameters = listOf(
                         ToolParam("query", required = true, description = "资料关键词", aliases = listOf("keyword", "course_name", "param")),
                     ),
+                    allowRawString = true,
                     tool = SearchExternalResourceTool(),
                 ),
             )
@@ -249,6 +316,7 @@ class ReActToolRegistry {
                     parameters = listOf(
                         ToolParam("query", required = true, description = "检索关键词", aliases = listOf("keyword", "param", "name")),
                     ),
+                    allowRawString = true,
                     tool = SearchTimetableTool().asSuspending(),
                 ),
             )
@@ -259,6 +327,7 @@ class ReActToolRegistry {
                     parameters = listOf(
                         ToolParam("query", required = true, description = "课程关键词", aliases = listOf("keyword", "param")),
                     ),
+                    allowRawString = true,
                     tool = SearchCourseTool().asSuspending(),
                 ),
             )
@@ -273,6 +342,7 @@ class ReActToolRegistry {
                         ToolParam("query", description = "关注点关键词"),
                     ),
                     maxObservationChars = 6000,
+                    allowRawString = true,
                     tool = GetCourseDetailTool().asSuspending(),
                 ),
             )
@@ -283,6 +353,7 @@ class ReActToolRegistry {
                     parameters = listOf(
                         ToolParam("param", required = true, description = "搜索词", aliases = listOf("query")),
                     ),
+                    allowRawString = true,
                     tool = WebSearchTool().asSuspending(),
                 ),
             )
@@ -293,6 +364,7 @@ class ReActToolRegistry {
                     parameters = listOf(
                         ToolParam("query", required = true, description = "问题或关键词", aliases = listOf("keyword", "param")),
                     ),
+                    allowRawString = true,
                     tool = RagSearchTool().asSuspending(),
                 ),
             )
@@ -307,6 +379,7 @@ class ReActToolRegistry {
                     ),
                     maxObservationChars = 6000,
                     timeoutMs = 25_000,
+                    allowRawString = true,
                     tool = CrawlPageTool().asSuspending(),
                 ),
             )
@@ -320,6 +393,7 @@ class ReActToolRegistry {
                     ),
                     maxObservationChars = 4000,
                     timeoutMs = 25_000,
+                    allowRawString = true,
                     tool = CrawlSiteTool().asSuspending(),
                 ),
             )
@@ -330,6 +404,7 @@ class ReActToolRegistry {
                     parameters = listOf(
                         ToolParam("task_id", required = true, description = "任务 id"),
                     ),
+                    allowRawString = true,
                     tool = CrawlStatusTool().asSuspending(),
                 ),
             )

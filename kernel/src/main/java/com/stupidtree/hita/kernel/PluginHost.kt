@@ -10,7 +10,9 @@ import com.stupidtree.hita.api.PluginContext
 import com.stupidtree.hita.api.PluginHooks
 import com.stupidtree.hita.api.PluginToolHandler
 import com.stupidtree.hita.api.PluginToolRegistry
+import com.stupidtree.hita.api.PluginToolSchema
 import com.stupidtree.hita.api.PluginToolSpec
+import com.stupidtree.hita.api.normalizeToolName
 import com.stupidtree.hita.api.SearchTab
 import com.stupidtree.hita.api.SearchTabRegistry
 import com.stupidtree.hita.api.TabContribution
@@ -54,13 +56,21 @@ class PluginHost(
     private val conflicts = ArrayList<PluginConflict>()
     private val globalServices = LinkedHashSet<String>()
     private val availableServices = LinkedHashSet<String>()
-    private val hookListeners = LinkedHashMap<String, MutableList<Decision<*>>>()
+    private data class HookRegistration(
+        val pluginId: String,
+        val listener: Decision<*>,
+    )
+
+    private val hookListeners = LinkedHashMap<String, MutableList<HookRegistration>>()
+    private val hookFailures = ArrayList<PluginHookFailure>()
+    private val toolConflicts = ArrayList<PluginToolConflict>()
     private val hookLock = Any()
     private val pluginToolBindings = LinkedHashMap<String, PluginToolBinding>()
     private val toolLock = Any()
 
     data class PluginToolBinding(
         val pluginId: String,
+        val origin: PluginOrigin,
         val spec: PluginToolSpec,
         val handler: PluginToolHandler,
     )
@@ -176,7 +186,7 @@ class PluginHost(
             )
             return
         }
-        val scope = PluginScope(plugin.id)
+        val scope = PluginScope(plugin.id, descriptor.origin)
         scopes[plugin.id] = scope
         installedPlugins[plugin.id] = plugin
         try {
@@ -243,6 +253,13 @@ class PluginHost(
         scopes.remove(pluginId)
         installedPlugins.remove(pluginId)
         descriptors.remove(pluginId)
+        conflicts.removeAll { it.existingProvider == pluginId || it.rejectedProvider == pluginId }
+        synchronized(toolLock) {
+            toolConflicts.removeAll { it.existingPluginId == pluginId || it.rejectedPluginId == pluginId }
+        }
+        synchronized(hookLock) {
+            hookFailures.removeAll { it.pluginId == pluginId }
+        }
         rebuildAvailableServices()
         drainPending()
     }
@@ -278,14 +295,19 @@ class PluginHost(
 
     private fun registerPluginTool(
         pluginId: String,
+        origin: PluginOrigin,
         spec: PluginToolSpec,
         handler: PluginToolHandler,
     ): AutoCloseable {
-        val key = spec.name.trim().lowercase()
-        val binding = PluginToolBinding(pluginId, spec, handler)
+        PluginToolSchema.validationError(spec)?.let { error ->
+            throw IllegalArgumentException("invalid plugin tool ${spec.name}: $error")
+        }
+        val key = normalizeToolName(spec.name)
+        val binding = PluginToolBinding(pluginId, origin, spec, handler)
         synchronized(toolLock) {
             val existing = pluginToolBindings[key]
             if (existing != null && existing.pluginId != pluginId) {
+                toolConflicts += PluginToolConflict(key, existing.pluginId, pluginId)
                 logger("tool name conflict: $key kept by ${existing.pluginId}, rejected $pluginId", null)
                 return AutoCloseable {}
             }
@@ -305,44 +327,86 @@ class PluginHost(
         pluginToolBindings.values.toList()
     }.sortedBy { it.spec.name }
 
-    private fun <T> registerHook(key: HookKey<T>, listener: Decision<T>): AutoCloseable {
+    private fun <T> registerHook(
+        pluginId: String,
+        key: HookKey<T>,
+        listener: Decision<T>,
+    ): AutoCloseable {
+        val registration = HookRegistration(pluginId, listener)
         synchronized(hookLock) {
             val listeners = hookListeners.getOrPut(key.name) { mutableListOf() }
-            listeners += listener
+            listeners += registration
         }
         return AutoCloseable {
             synchronized(hookLock) {
                 val listeners = hookListeners[key.name] ?: return@synchronized
-                listeners.remove(listener)
+                listeners.remove(registration)
                 if (listeners.isEmpty()) hookListeners.remove(key.name)
             }
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
     fun <T> runHook(key: HookKey<T>, value: T): T {
         val listeners = synchronized(hookLock) {
             hookListeners[key.name]?.toList().orEmpty()
-        }.map { it as Decision<T> }
-        return invokeHook(key.name, listeners, 0, value)
+        }
+        var failed = false
+        val result = invokeHook(key.name, listeners, 0, value, value) { failed = true }
+        return if (failed) value else result
     }
 
+    private fun recordHookFailure(
+        keyName: String,
+        registration: HookRegistration,
+        index: Int,
+        t: Throwable,
+    ) {
+        synchronized(hookLock) {
+            hookFailures += PluginHookFailure(
+                hook = keyName,
+                pluginId = registration.pluginId,
+                listenerIndex = index,
+                message = t.message ?: t::class.java.simpleName,
+            )
+            if (hookFailures.size > 100) hookFailures.removeAt(0)
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
     private fun <T> invokeHook(
         keyName: String,
-        listeners: List<Decision<T>>,
+        listeners: List<HookRegistration>,
         index: Int,
         value: T,
+        original: T,
+        onFailure: () -> Unit,
     ): T {
         if (index >= listeners.size) return value
+        val registration = listeners[index]
         var delegated = false
         return try {
-            listeners[index].handle(value) { next ->
+            val result = (registration.listener as Decision<T>).handle(value) { next ->
+                if (delegated) throw IllegalStateException("hook next() called more than once")
                 delegated = true
-                invokeHook(keyName, listeners, index + 1, next)
+                invokeHook(keyName, listeners, index + 1, next, original, onFailure)
+            }
+            if (result == null) {
+                recordHookFailure(
+                    keyName,
+                    registration,
+                    index,
+                    IllegalStateException("hook returned null"),
+                )
+                onFailure()
+                original
+            } else {
+                result
             }
         } catch (t: Throwable) {
             logger("hook $keyName listener $index failed", t)
-            if (delegated) value else invokeHook(keyName, listeners, index + 1, value)
+            recordHookFailure(keyName, registration, index, t)
+            onFailure()
+            original
         }
     }
 
@@ -379,20 +443,35 @@ class PluginHost(
         services = serviceProviders.entries
             .map { (service, provider) -> PluginServiceBinding(service, provider) }
             .sortedBy { it.service },
+        hookFailures = synchronized(hookLock) { hookFailures.toList() },
+        toolConflicts = synchronized(toolLock) { toolConflicts.toList() },
     )
 
     /**
      * 单个插件的注册作用域。所有 undo 都是幂等的移除/恢复动作，
      * 因此「安装到一半失败」也能安全回滚。
      */
-    inner class PluginScope(private val pluginId: String) : PluginContext {
+    inner class PluginScope(
+        private val pluginId: String,
+        private val origin: PluginOrigin,
+    ) : PluginContext {
 
         private val undoStack = ArrayList<() -> Unit>()
+        private val undoLock = Any()
+        @Volatile
         private var revoked = false
+
+        private fun addUndo(undo: () -> Unit): Boolean = synchronized(undoLock) {
+            if (revoked) false else {
+                undoStack += undo
+                true
+            }
+        }
 
         override fun <T : Any> service(key: ServiceKey<T>): T? = this@PluginHost.service(key)
 
         override fun <T : Any> provide(key: ServiceKey<T>, impl: T) {
+            if (revoked) return
             val existingProvider = serviceProviders[key.name]
             if (existingProvider != null && existingProvider != pluginId) {
                 conflicts += PluginConflict(key.name, existingProvider, pluginId)
@@ -405,7 +484,7 @@ class PluginHost(
             val previous = services.put(key.name, impl)
             val previousProvider = serviceProviders.put(key.name, pluginId)
             availableServices.add(key.name)
-            undoStack += {
+            addUndo {
                 // 宿主或其它插件后来接管该 key 时，卸载不能把它们的实现覆盖掉。
                 if (serviceProviders[key.name] == pluginId) {
                     if (previous == null) {
@@ -427,29 +506,34 @@ class PluginHost(
 
         override val hooks: PluginHooks = object : PluginHooks {
             override fun <T> register(key: HookKey<T>, listener: Decision<T>): AutoCloseable {
-                if (revoked) return AutoCloseable {}
-                val handle = this@PluginHost.registerHook(key, listener)
-                undoStack += { handle.close() }
+                val handle = this@PluginHost.registerHook(pluginId, key, listener)
+                if (!addUndo { handle.close() }) {
+                    handle.close()
+                    return AutoCloseable {}
+                }
                 return handle
             }
 
             override fun <T> run(key: HookKey<T>, value: T): T =
-                this@PluginHost.runHook(key, value)
+                if (revoked) value else this@PluginHost.runHook(key, value)
         }
 
         override val tools: PluginToolRegistry = object : PluginToolRegistry {
             override fun register(spec: PluginToolSpec, handler: PluginToolHandler): AutoCloseable {
-                if (revoked) return AutoCloseable {}
-                val handle = this@PluginHost.registerPluginTool(pluginId, spec, handler)
-                undoStack += { handle.close() }
+                val handle = this@PluginHost.registerPluginTool(pluginId, origin, spec, handler)
+                if (!addUndo { handle.close() }) {
+                    handle.close()
+                    return AutoCloseable {}
+                }
                 return handle
             }
         }
 
         override val nav: NavRegistry = object : NavRegistry {
             override fun register(entry: NavEntry) {
+                if (revoked) return
                 val previous = navEntries.put(entry.id, entry)
-                undoStack += {
+                addUndo {
                     if (previous == null) navEntries.remove(entry.id) else navEntries[entry.id] = previous
                 }
             }
@@ -459,8 +543,9 @@ class PluginHost(
             override fun find(id: String): NavEntry? = this@PluginHost.nav.find(id)
 
             override fun registerText(entry: TextNavEntry) {
+                if (revoked) return
                 val previous = textNavEntries.put(entry.id, entry)
-                undoStack += {
+                addUndo {
                     if (previous == null) textNavEntries.remove(entry.id)
                     else textNavEntries[entry.id] = previous
                 }
@@ -472,8 +557,9 @@ class PluginHost(
 
         override val searchTabs: SearchTabRegistry = object : SearchTabRegistry {
             override fun register(tab: SearchTab) {
+                if (revoked) return
                 val previous = searchTabEntries.put(tab.id, tab)
-                undoStack += {
+                addUndo {
                     if (previous == null) searchTabEntries.remove(tab.id)
                     else searchTabEntries[tab.id] = previous
                 }
@@ -482,8 +568,9 @@ class PluginHost(
             override fun entries(): List<SearchTab> = this@PluginHost.searchTabs.entries()
 
             override fun registerView(tab: ViewSearchTab) {
+                if (revoked) return
                 val previous = viewSearchTabEntries.put(tab.id, tab)
-                undoStack += {
+                addUndo {
                     if (previous == null) viewSearchTabEntries.remove(tab.id)
                     else viewSearchTabEntries[tab.id] = previous
                 }
@@ -495,8 +582,9 @@ class PluginHost(
 
         override val tabs: TabRegistry = object : TabRegistry {
             override fun register(tab: TabContribution) {
+                if (revoked) return
                 val previous = tabEntries.put(tab.id, tab)
-                undoStack += {
+                addUndo {
                     if (previous == null) tabEntries.remove(tab.id) else tabEntries[tab.id] = previous
                 }
             }
@@ -508,8 +596,9 @@ class PluginHost(
 
         override val sync: SyncRegistry = object : SyncRegistry {
             override fun register(codec: SyncCodec) {
+                if (revoked) return
                 val previous = syncCodecs.put(codec.key, codec)
-                undoStack += {
+                addUndo {
                     if (previous == null) syncCodecs.remove(codec.key)
                     else syncCodecs[codec.key] = previous
                 }
@@ -521,9 +610,11 @@ class PluginHost(
         }
 
         fun revokeAll() {
-            revoked = true
-            undoStack.asReversed().forEach { runCatching(it) }
-            undoStack.clear()
+            val actions = synchronized(undoLock) {
+                revoked = true
+                undoStack.toList().also { undoStack.clear() }
+            }
+            actions.asReversed().forEach { runCatching(it) }
         }
     }
 

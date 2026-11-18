@@ -2,6 +2,8 @@ package com.stupidtree.hitax.plugin
 
 import android.app.Application
 import com.stupidtree.hitax.HApplication
+import com.stupidtree.hitax.market.CompositionKind
+import com.stupidtree.hitax.market.CompositionStore
 
 /**
  * 内置插件的「卸载 / 重新安装」。
@@ -49,6 +51,9 @@ class BuiltinPluginManager(private val application: Application) {
         if (enabled) install(pluginId) else uninstall(pluginId, purge = false)
 
     fun install(pluginId: String): Result<Unit> = runCatching {
+        check(!CompositionStore.isKillSwitched(application, CompositionKind.BUILTIN, pluginId)) {
+            "插件已被宿主安全开关停用"
+        }
         val entry = PluginCatalog.entry(application, pluginId)
             ?: error("插件清单中没有 $pluginId")
         val plugin = PluginCatalog.instantiate(entry, application)

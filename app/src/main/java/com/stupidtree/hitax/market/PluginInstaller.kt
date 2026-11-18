@@ -7,6 +7,7 @@ import com.stupidtree.hita.kernel.PluginArtifactMeta
 import com.stupidtree.hita.kernel.PluginDescriptor
 import com.stupidtree.hita.kernel.PluginHost
 import com.stupidtree.hita.kernel.PluginLoader
+import com.stupidtree.hita.kernel.PluginOrigin
 import com.stupidtree.hitax.BuildConfig
 import com.stupidtree.hitax.plugin.PluginExemptions
 import java.io.File
@@ -41,6 +42,9 @@ class PluginInstaller(
     fun setEnabled(id: String, enabled: Boolean) {
         val entry = installed().firstOrNull { it.id == id }
             ?: throw IllegalStateException("插件未安装")
+        if (enabled && CompositionStore.isKillSwitched(context, CompositionKind.DEX, id)) {
+            throw IllegalStateException("插件已被宿主安全开关停用")
+        }
         if (enabled) {
             val dir = File(root, id)
             val dex = File(dir, "plugin.dex")
@@ -75,6 +79,9 @@ class PluginInstaller(
      * 安装一个市场插件。失败时抛异常，调用方负责提示；已产生的文件会被清掉。
      */
     fun install(entry: MarketPlugin, indexBase: String?): Unit {
+        require(!CompositionStore.isKillSwitched(context, CompositionKind.DEX, entry.id)) {
+            "插件已被宿主安全开关停用"
+        }
         val dir = File(root, entry.id)
         val staging = File(root, ".staging-${entry.id}")
         val backup = File(root, ".backup-${entry.id}")
@@ -163,7 +170,12 @@ class PluginInstaller(
 
     /** 应用启动时恢复上次安装过的运行时插件。单个失败不影响其它插件。 */
     fun restore() {
+        val safety = CompositionStore.killSwitches(context)
         installed().forEach { entry ->
+            if (CompositionTarget(CompositionKind.DEX, entry.id) in safety) {
+                Log.i(TAG, "skip ${entry.id}: host kill switch")
+                return@forEach
+            }
             if (!isEnabled(entry.id)) {
                 Log.i(TAG, "skip ${entry.id}: disabled")
                 return@forEach
@@ -202,6 +214,7 @@ class PluginInstaller(
         id = id,
         requires = requires,
         provides = provides,
+        origin = PluginOrigin.DEX,
     )
 
     private fun MarketPlugin.isExempt(): Boolean = PluginExemptions.isExempt(
@@ -233,11 +246,16 @@ class PluginInstaller(
             else Gson().fromJson(text, Array<String>::class.java).toSet()
         }.getOrDefault(emptySet())
 
-        /** 文件被外部删除（清数据、手动删目录）时不要继续显示「已安装」。 */
+        /** 文件被外部删除或内容损坏时不要继续显示「已安装」。 */
         internal fun filterInstalled(
             records: List<MarketPlugin>,
             root: File,
-        ): List<MarketPlugin> = records.filter { File(File(root, it.id), "plugin.dex").isFile }
+        ): List<MarketPlugin> = records.filter { record ->
+            val dex = File(File(root, record.id), "plugin.dex")
+            dex.isFile && runCatching {
+                PluginLoader.sha256(dex).equals(record.sha256, ignoreCase = true)
+            }.getOrDefault(false)
+        }
     }
 
 }
