@@ -205,8 +205,16 @@ class PluginHost(
 
     fun isInstalled(pluginId: String): Boolean = installedPlugins.containsKey(pluginId)
 
+    /** 插件已提交但仍在等待 requires 中的服务。 */
+    fun isWaiting(pluginId: String): Boolean = pendingPlugins.containsKey(pluginId)
+
     /** [purgeData] 为真时先让插件清理自己的持久化数据，再撤销注册。 */
     fun uninstall(pluginId: String, purgeData: Boolean = false) {
+        if (pendingPlugins.remove(pluginId) != null) {
+            waitingPlugins.remove(pluginId)
+            logger("plugin cancelled while waiting: $pluginId", null)
+            return
+        }
         val plugin = installedPlugins[pluginId] ?: return
         val scope = scopes[pluginId] ?: return
         if (purgeData) {

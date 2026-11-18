@@ -60,6 +60,31 @@ class PluginActivationTest {
     }
 
     @Test
+    fun cancellingWaitingPluginPreventsLaterActivation() {
+        val host = newHost()
+        val service = ServiceKey<String>("svc")
+        var installed = false
+
+        host.install(
+            TestPlugin("consumer") { installed = true },
+            descriptor("consumer", requires = setOf("svc")),
+        )
+        assertTrue(host.isWaiting("consumer"))
+
+        host.uninstall("consumer")
+        assertFalse(host.isWaiting("consumer"))
+        assertTrue(host.diagnostics().waiting.isEmpty())
+
+        host.install(
+            TestPlugin("provider"),
+            descriptor("provider", provides = setOf("svc")),
+        )
+
+        assertFalse(installed)
+        assertFalse(host.isInstalled("consumer"))
+    }
+
+    @Test
     fun missingProviderStaysWaitingWithoutBecomingAFailure() {
         val host = newHost()
 
