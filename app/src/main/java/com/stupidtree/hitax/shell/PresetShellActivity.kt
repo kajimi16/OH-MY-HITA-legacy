@@ -629,7 +629,7 @@ private fun MorePage(service: TimetableService?) {
                 open("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
             },
         ) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = 10.5.dp, end = 18.dp, top = 18.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier.width(44.dp).height(44.dp).background(Color(0xFF2563EB), RoundedCornerShape(22.dp)),
                     contentAlignment = Alignment.Center,
@@ -657,7 +657,7 @@ private fun MorePage(service: TimetableService?) {
                 )
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         Card(
             shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -665,7 +665,7 @@ private fun MorePage(service: TimetableService?) {
                 com.stupidtree.hitax.utils.ActivityUtils.startTimetableManager(context)
             },
         ) {
-            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = 10.5.dp, end = 18.dp, top = 18.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier.size(40.dp).background(Color(0xFFE8F0FE), CircleShape),
                     contentAlignment = Alignment.Center,
@@ -679,7 +679,8 @@ private fun MorePage(service: TimetableService?) {
                 }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text("课表管理", color = Color(0xFF6B7280), fontSize = 12.sp)
-                    Text("共${timetableCount ?: 0}个课表", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text(if ((timetableCount ?: 0) == 0) "无课表" else "共${timetableCount}个课表", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                 }
                 androidx.compose.material3.Icon(
                     androidx.compose.material.icons.Icons.Default.ChevronRight,
@@ -689,7 +690,7 @@ private fun MorePage(service: TimetableService?) {
                 )
             }
         }
-        Spacer(Modifier.height(26.dp))
+        Spacer(Modifier.height(19.5.dp))
         MoreGroup("教务功能") {
             Spacer(Modifier.height(4.dp))
             MoreRow("考试", icon = Icons.Default.CalendarToday, rowHeight = 62.dp) { open("com.stupidtree.hitax.ui.eas.exam.ExamActivity") }
@@ -775,7 +776,7 @@ private fun MoreRow(
         Modifier.then(
             if (rowHeight != null) Modifier.height(rowHeight) else Modifier
         ).fillMaxWidth().clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 4.dp),
+            .padding(start = 20.dp, end = 18.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
