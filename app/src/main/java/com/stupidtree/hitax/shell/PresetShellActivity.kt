@@ -7,6 +7,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentContainerView
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ChevronRight
@@ -60,15 +62,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.abs
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.text.style.TextOverflow
 import com.stupidtree.hita.api.TimetableService
 import com.stupidtree.hitax.HApplication
@@ -369,12 +375,13 @@ private fun TimetablePage(service: TimetableService?) {
             ?: androidx.lifecycle.MutableLiveData<com.stupidtree.hitax.data.model.timetable.Timetable?>(null)
     }
     val timetable by timetableLive.observeAsState(null)
+    var weekOffset by remember { mutableIntStateOf(0) }
     val currentWeekLive = remember(service, timetable) {
         service?.getCurrentWeekOfTimetable(timetable?.code)
             ?: androidx.lifecycle.MutableLiveData(1)
     }
     val currentWeek by currentWeekLive.observeAsState(1)
-    val week = (currentWeek ?: 1).coerceAtLeast(1)
+    val week = ((currentWeek ?: 1) + weekOffset).coerceAtLeast(1)
     val start = remember(timetable, week) {
         (timetable?.startTime?.time ?: 0L) + (week - 1).toLong() * 7 * 24 * 3600 * 1000
     }
@@ -403,13 +410,14 @@ private fun TimetablePage(service: TimetableService?) {
     }
 
     Column(Modifier.fillMaxSize()) {
+        val context = LocalContext.current
         Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "第${week}周",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 24.sp,
             )
-            Spacer(Modifier.width(62.dp))
+            Spacer(Modifier.width(16.dp))
             Text(
                 timetable?.name ?: "默认课表1",
                 color = Color(0xFF6B7280),
@@ -418,6 +426,32 @@ private fun TimetablePage(service: TimetableService?) {
                     .background(Color(0xFFE8F0FE), RoundedCornerShape(12.dp))
                     .padding(horizontal = 10.dp, vertical = 5.dp),
             )
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = {
+                val body = buildString {
+                    append("第").append(week).append("周 ")
+                    append(timetable?.name ?: "默认课表").append("\n")
+                    events.sortedBy { it.from.time }.forEach {
+                        append(it.from.toString().takeLast(8).take(5)).append(" ").append(it.name).append("\n")
+                    }
+                }
+                context.startActivity(
+                    android.content.Intent.createChooser(
+                        android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, body)
+                        }, "分享课表"
+                    )
+                )
+            }) { Icon(Icons.Default.Share, "分享课表", tint = Color(0xFF6B7280)) }
+            val isNight = (context.resources.configuration.uiMode and
+                android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val theme = (context.applicationContext as HApplication).pluginHost
+                .service(com.stupidtree.hita.api.ThemeController.KEY)
+            IconButton(onClick = { theme?.setNightMode(!isNight) }) {
+                Icon(Icons.Default.DarkMode, "切换深浅色", tint = Color(0xFF6B7280))
+            }
         }
         Spacer(Modifier.height(24.dp))
         Row(Modifier.fillMaxWidth().padding(top = 0.dp, start = 0.dp, end = 8.dp), verticalAlignment = Alignment.Bottom) {
@@ -451,7 +485,16 @@ private fun TimetablePage(service: TimetableService?) {
         Spacer(Modifier.height(20.dp))
         val hourHeight = 56.dp
         val todayIndex = (dayOfWeek(System.currentTimeMillis()) - 1).coerceIn(0, 6)
-        Row(Modifier.fillMaxWidth().height(hourHeight * 12)) {
+        Row(Modifier.fillMaxWidth().height(hourHeight * 12).pointerInput(Unit) {
+            var drag = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { drag = 0f },
+                onHorizontalDrag = { _, amount -> drag += amount },
+                onDragEnd = {
+                    if (abs(drag) > 120) weekOffset += if (drag < 0) 1 else -1
+                },
+            )
+        }) {
             Column(Modifier.width(48.dp)) {
                 repeat(12) { index ->
                     Box(Modifier.fillMaxWidth().height(hourHeight), contentAlignment = Alignment.TopStart) {
