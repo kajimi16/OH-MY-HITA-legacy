@@ -376,12 +376,10 @@ private fun TimetablePage(service: TimetableService?) {
     }
     val timetable by timetableLive.observeAsState(null)
     var weekOffset by remember { mutableIntStateOf(0) }
-    val currentWeekLive = remember(service, timetable) {
-        service?.getCurrentWeekOfTimetable(timetable?.code)
-            ?: androidx.lifecycle.MutableLiveData(1)
+    val baseWeek = remember(timetable) {
+        timetable?.getWeekNumber(System.currentTimeMillis())?.takeIf { it > 0 } ?: 1
     }
-    val currentWeek by currentWeekLive.observeAsState(1)
-    val week = ((currentWeek ?: 1) + weekOffset).coerceAtLeast(1)
+    val week = (baseWeek + weekOffset).coerceAtLeast(1)
     val start = remember(timetable, week) {
         (timetable?.startTime?.time ?: 0L) + (week - 1).toLong() * 7 * 24 * 3600 * 1000
     }
@@ -411,7 +409,7 @@ private fun TimetablePage(service: TimetableService?) {
 
     Column(Modifier.fillMaxSize()) {
         val context = LocalContext.current
-        Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 13.5.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "第${week}周",
                 fontWeight = FontWeight.SemiBold,
@@ -453,7 +451,7 @@ private fun TimetablePage(service: TimetableService?) {
                 Icon(Icons.Default.DarkMode, "切换深浅色", tint = Color(0xFF6B7280))
             }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.4.dp))
         Row(Modifier.fillMaxWidth().padding(top = 0.dp, start = 0.dp, end = 8.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -483,8 +481,12 @@ private fun TimetablePage(service: TimetableService?) {
             }
         }
         Spacer(Modifier.height(20.dp))
-        val hourHeight = 56.dp
-        val todayIndex = (dayOfWeek(System.currentTimeMillis()) - 1).coerceIn(0, 6)
+        val hourHeight = 61.dp
+        val todayCalendar = java.util.Calendar.getInstance()
+        if (todayCalendar.get(java.util.Calendar.HOUR_OF_DAY) < 5) {
+            todayCalendar.add(java.util.Calendar.DATE, -1)
+        }
+        val todayIndex = (dayOfWeek(todayCalendar.timeInMillis) - 1).coerceIn(0, 6)
         Row(Modifier.fillMaxWidth().height(hourHeight * 12).pointerInput(Unit) {
             var drag = 0f
             detectHorizontalDragGestures(
@@ -523,20 +525,21 @@ private fun TimetablePage(service: TimetableService?) {
                             events.filter { dayOfWeek(it.from.time) == dayIndex + 1 }.forEach { item ->
                                 val fromMinute = minuteOfDay(item.from.time)
                                 val toMinute = minuteOfDay(item.to.time)
-                                val top = ((fromMinute - 8 * 60).coerceAtLeast(0) / 60f) * 56f
-                                val height = ((toMinute - fromMinute).coerceAtLeast(30) / 60f) * 56f
+                                val top = ((fromMinute - 8 * 60).coerceAtLeast(0) / 60f) * hourHeight.value
+                                val height = ((toMinute - fromMinute).coerceAtLeast(30) / 60f) * hourHeight.value
                                 Card(
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(16.dp),
                                     colors = CardDefaults.cardColors(
                                         containerColor = if (item.color != 0) Color(item.color) else Color(0xFFC24C8C),
                                     ),
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
                                         .offset(y = top.dp).height(height.dp),
                                 ) {
-                                    Column(Modifier.padding(4.dp)) {
-                                        Text(item.name, color = Color.White, fontSize = 11.sp, maxLines = 5, overflow = TextOverflow.Ellipsis)
+                                    Column(Modifier.fillMaxSize().padding(5.dp)) {
+                                        Text(item.name, color = Color.White, fontSize = 11.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                                        Spacer(Modifier.weight(1f))
                                         item.place?.takeIf { it.isNotBlank() }?.let {
-                                            Text(it, color = Color.White.copy(alpha = .8f), fontSize = 9.sp)
+                                            Text(it, color = Color.White, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
                                     }
                                 }
