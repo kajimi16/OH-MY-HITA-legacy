@@ -19,8 +19,19 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MeetingRoom
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.clickable
@@ -42,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
@@ -400,30 +412,30 @@ private fun MorePage(service: TimetableService?) {
         }
         Spacer(Modifier.height(14.dp))
         MoreGroup("教务功能") {
-            MoreRow("考试") { open("com.stupidtree.hitax.ui.eas.exam.ExamActivity") }
-            MoreRow("成绩管理", "个人成绩明细 · 分项得分 · 权重折算") {
+            MoreRow("考试", icon = Icons.Default.CalendarToday) { open("com.stupidtree.hitax.ui.eas.exam.ExamActivity") }
+            MoreRow("成绩管理", "个人成绩明细 · 分项得分 · 权重折算", Icons.Default.Assessment) {
                 open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
             }
-            MoreRow("空教室") { open("com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomActivity") }
-            MoreRow("培养方案", "完成度 · 学分类别 · 培养课组") {
+            MoreRow("空教室", icon = Icons.Default.MeetingRoom) { open("com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomActivity") }
+            MoreRow("培养方案", "完成度 · 学分类别 · 培养课组", Icons.Default.School) {
                 openPlugin("com.stupidtree.hita.ui.training")
             }
-            MoreRow("深圳课程浏览", "教务选课池 · 全校课表（需 Web 登录）") {
+            MoreRow("深圳课程浏览", "教务选课池 · 全校课表（需 Web 登录）", Icons.Default.Search) {
                 openPlugin("com.stupidtree.hita.ui.community")
             }
         }
         Spacer(Modifier.height(14.dp))
         MoreGroup("课程资源") {
-            MoreRow("查询资源", "查询三个校区的课程资料") {
+            MoreRow("查询资源", "查询三个校区的课程资料", Icons.Default.Search) {
                 open("com.stupidtree.hitax.ui.search.SearchActivity")
             }
         }
         Spacer(Modifier.height(14.dp))
         MoreGroup("设置") {
-            MoreRow("连接深圳 Web 教务", "培养方案、考试等需要 Web 会话") {
+            MoreRow("连接深圳 Web 教务", "培养方案、考试等需要 Web 会话", Icons.Default.Link) {
                 open("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
             }
-            MoreRow("应用设置", "外观、提醒与数据") {
+            MoreRow("应用设置", "外观、提醒与数据", Icons.Default.Settings) {
                 open("com.stupidtree.hitax.ui.main.MainActivity")
             }
         }
@@ -433,13 +445,19 @@ private fun MorePage(service: TimetableService?) {
 @Composable
 private fun MoreGroup(title: String, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
-        Text(title, color = Color(0xFF6B7280), fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
+        Text(
+            title,
+            color = Color.Black,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
         Card(
             shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 content()
             }
         }
@@ -447,15 +465,30 @@ private fun MoreGroup(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun MoreRow(title: String, subtitle: String? = null, onClick: () -> Unit) {
-    Column(
+private fun MoreRow(
+    title: String,
+    subtitle: String? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.ChevronRight,
+    onClick: () -> Unit,
+) {
+    Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 13.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
-        if (!subtitle.isNullOrBlank()) {
-            Text(subtitle, color = Color(0xFF6B7280), fontSize = 12.sp)
+        Box(
+            Modifier.size(40.dp).background(Color(0xFFE8F0FE), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, tint = Color(0xFF3390EC), modifier = Modifier.size(21.dp))
         }
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+            if (!subtitle.isNullOrBlank()) {
+                Text(subtitle, color = Color(0xFF808080), fontSize = 12.sp)
+            }
+        }
+        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF9CA3AF), modifier = Modifier.size(20.dp))
     }
 }
 
