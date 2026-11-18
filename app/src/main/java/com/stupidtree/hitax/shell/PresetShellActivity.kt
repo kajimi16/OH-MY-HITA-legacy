@@ -171,9 +171,9 @@ private fun HitaAndroidShell(
                 else -> Unit
             }
         }
-        Box(Modifier.fillMaxWidth().padding(bottom = 4.dp), contentAlignment = Alignment.BottomCenter) {
+        Box(Modifier.fillMaxWidth().padding(bottom = 0.dp), contentAlignment = Alignment.BottomCenter) {
             val availableWidth = LocalConfiguration.current.screenWidthDp.dp - 32.dp
-            val tabWidth = minOf(56.dp, availableWidth / tabs.size.coerceAtLeast(1))
+            val tabWidth = minOf(60.dp, availableWidth / tabs.size.coerceAtLeast(1))
             val barWidth = tabWidth * tabs.size + 8.dp
             val indicatorOffset by animateDpAsState(
                 targetValue = tabWidth * selected,
