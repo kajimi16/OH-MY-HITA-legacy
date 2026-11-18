@@ -3,6 +3,11 @@ package com.stupidtree.hitax.plugin
 import android.app.Application
 import android.util.Log
 import com.stupidtree.hita.api.Plugin
+import com.stupidtree.hita.kernel.CompatibilityResult
+import com.stupidtree.hita.kernel.PluginCompatibility
+import com.stupidtree.hita.kernel.PluginFailurePhase
+import com.stupidtree.hita.kernel.PluginRejectedException
+import com.stupidtree.hitax.HApplication
 
 /**
  * 构建期插件清单 —— profile 的雏形。
@@ -27,16 +32,28 @@ object PluginCatalog {
             .filterNot { PluginPrefs.isDisabled(application, it.id) }
             .mapNotNull { instantiate(it, application) }
 
-    fun instantiate(entry: PluginEntry, application: Application): Plugin? = runCatching {
-        val clazz = Class.forName(entry.className, true, PluginCatalog::class.java.classLoader)
-        if (entry.needsApplication) {
-            clazz.getConstructor(Application::class.java).newInstance(application) as Plugin
-        } else {
-            clazz.getConstructor().newInstance() as Plugin
+    fun instantiate(entry: PluginEntry, application: Application): Plugin? {
+        val result = PluginCompatibility.check(entry.artifactMeta())
+        if (result is CompatibilityResult.Rejected) {
+            val error = PluginRejectedException(entry.id, result.reasons)
+            runCatching {
+                (application as HApplication).pluginHost
+                    .reject(entry.id, error, PluginFailurePhase.COMPATIBILITY)
+            }
+            Log.e(TAG, "插件兼容性拒绝：${entry.className}", error)
+            return null
         }
-    }.onFailure {
-        Log.e(TAG, "插件不可用（可能未打包）：${entry.className}", it)
-    }.getOrNull()
+        return runCatching {
+            val clazz = Class.forName(entry.className, true, PluginCatalog::class.java.classLoader)
+            if (entry.needsApplication) {
+                clazz.getConstructor(Application::class.java).newInstance(application) as Plugin
+            } else {
+                clazz.getConstructor().newInstance() as Plugin
+            }
+        }.onFailure {
+            Log.e(TAG, "插件不可用（可能未打包）：${entry.className}", it)
+        }.getOrNull()
+    }
 
     private fun readEntries(application: Application): List<PluginEntry> = runCatching {
         val text = application.assets.open("plugins.json").bufferedReader().use { it.readText() }

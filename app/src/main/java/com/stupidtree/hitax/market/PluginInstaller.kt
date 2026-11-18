@@ -3,6 +3,7 @@ package com.stupidtree.hitax.market
 import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
+import com.stupidtree.hita.kernel.PluginArtifactMeta
 import com.stupidtree.hita.kernel.PluginHost
 import com.stupidtree.hita.kernel.PluginLoader
 import java.io.File
@@ -42,7 +43,7 @@ class PluginInstaller(
             val dex = File(dir, "plugin.dex")
             if (!dex.isFile) throw IllegalStateException("插件文件不存在，请重新安装")
             PluginLoader(host, logger = { m, e -> log(m, e) })
-                .loadAndInstall(dex, entry.entryClass, File(dir, "opt"))
+                .loadAndInstall(dex, entry.entryClass, File(dir, "opt"), entry.artifactMeta())
             saveDisabled(disabledIds() - id)
         } else {
             runCatching { host.uninstall(id) }
@@ -97,7 +98,7 @@ class PluginInstaller(
             check(newDex.renameTo(File(dir, "plugin.dex"))) { "插件落盘失败" }
 
             PluginLoader(host, logger = { m, e -> log(m, e) })
-                .loadAndInstall(File(dir, "plugin.dex"), entry.entryClass, File(dir, "opt"))
+                .loadAndInstall(File(dir, "plugin.dex"), entry.entryClass, File(dir, "opt"), entry.artifactMeta())
             if (!wasEnabled) host.uninstall(entry.id)
 
             saveInstalled(installed().filterNot { it.id == entry.id } + entry)
@@ -121,6 +122,7 @@ class PluginInstaller(
                             File(dir, "plugin.dex"),
                             oldEntry.entryClass,
                             File(dir, "opt"),
+                            oldEntry.artifactMeta(),
                         )
                     }.onFailure { log("rollback failed: ${entry.id}", it) }
                 }
@@ -151,10 +153,19 @@ class PluginInstaller(
             }
             runCatching {
                 PluginLoader(host, logger = { m, e -> log(m, e) })
-                    .loadAndInstall(dex, entry.entryClass, File(File(root, entry.id), "opt"))
+                    .loadAndInstall(dex, entry.entryClass, File(File(root, entry.id), "opt"), entry.artifactMeta())
             }.onFailure { log("restore failed: ${entry.id}", it) }
         }
     }
+
+    private fun MarketPlugin.artifactMeta(): PluginArtifactMeta = PluginArtifactMeta(
+        id = id,
+        requiresApi = apiVersion,
+        minHostApi = minHostApi,
+        maxHostApi = maxHostApi,
+        apiAbi = apiAbi,
+        minSdk = minSdk,
+    )
 
     private fun fetch(entry: MarketPlugin, indexBase: String?, target: File) {
         PluginFetch.download(entry.url, indexBase, target)

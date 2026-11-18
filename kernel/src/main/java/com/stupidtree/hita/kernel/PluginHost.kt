@@ -40,6 +40,10 @@ class PluginHost(
     private val installedPlugins = LinkedHashMap<String, Plugin>()
     private val scopes = LinkedHashMap<String, PluginScope>()
     private val failures = LinkedHashMap<String, Throwable>()
+    private val failurePhases = LinkedHashMap<String, PluginFailurePhase>()
+    private val serviceProviders = LinkedHashMap<String, String>()
+    private val waitingPlugins = LinkedHashMap<String, MutableSet<String>>()
+    private val conflicts = ArrayList<PluginConflict>()
 
     /** 宿主只读的导航视图。 */
     val nav: NavRegistry = object : NavRegistry {
@@ -101,15 +105,28 @@ class PluginHost(
         plugins.forEach { install(it) }
     }
 
+    /** 记录一次发生在 `install()` 之前的拒绝，供诊断与测试读取。 */
+    fun reject(
+        pluginId: String,
+        reason: Throwable,
+        phase: PluginFailurePhase = PluginFailurePhase.COMPATIBILITY,
+    ) {
+        failures[pluginId] = reason
+        failurePhases[pluginId] = phase
+        logger("plugin rejected: $pluginId", reason)
+    }
+
     fun install(plugin: Plugin) {
         if (scopes.containsKey(plugin.id)) {
             logger("plugin already installed: ${plugin.id}", null)
             return
         }
         if (plugin.requiresApi > HITA_API_VERSION) {
-            failures[plugin.id] =
-                IllegalStateException("requires api ${plugin.requiresApi}, kernel api $HITA_API_VERSION")
-            logger("plugin rejected: ${plugin.id}", null)
+            reject(
+                plugin.id,
+                IllegalStateException("requires api ${plugin.requiresApi}, kernel api $HITA_API_VERSION"),
+                PluginFailurePhase.COMPATIBILITY,
+            )
             return
         }
         val scope = PluginScope(plugin.id)
@@ -117,12 +134,15 @@ class PluginHost(
         installedPlugins[plugin.id] = plugin
         try {
             plugin.install(scope)
+            failures.remove(plugin.id)
+            failurePhases.remove(plugin.id)
             logger("plugin installed: ${plugin.id}", null)
         } catch (t: Throwable) {
             scope.revokeAll()
             scopes.remove(plugin.id)
             installedPlugins.remove(plugin.id)
             failures[plugin.id] = t
+            failurePhases[plugin.id] = PluginFailurePhase.INSTALL
             logger("plugin install failed: ${plugin.id}", t)
         }
     }
@@ -152,6 +172,7 @@ class PluginHost(
      */
     fun <T : Any> provideGlobal(key: ServiceKey<T>, impl: T) {
         services[key.name] = impl
+        serviceProviders[key.name] = HOST_PROVIDER
     }
 
     fun <T : Any> service(key: ServiceKey<T>): T? = services[key.name] as? T
@@ -163,6 +184,29 @@ class PluginHost(
     fun installedIds(): List<String> = installedPlugins.keys.toList()
 
     fun failures(): Map<String, Throwable> = failures.toMap()
+
+    /** 当前内核状态的稳定快照；字段顺序不依赖 HashMap 遍历顺序。 */
+    fun diagnostics(): PluginDiagnostics = PluginDiagnostics(
+        installed = installedPlugins.entries
+            .map { (id, plugin) -> PluginSnapshot(id, plugin.requiresApi) }
+            .sortedBy { it.id },
+        failed = failures.entries
+            .map { (id, error) ->
+                PluginFailure(
+                    id = id,
+                    phase = failurePhases[id] ?: PluginFailurePhase.INSTALL,
+                    message = error.message ?: error::class.java.simpleName,
+                )
+            }
+            .sortedBy { it.id },
+        waiting = waitingPlugins.entries
+            .map { (id, missing) -> PluginWaiting(id, missing.toList().sorted()) }
+            .sortedBy { it.id },
+        conflicts = conflicts.toList(),
+        services = serviceProviders.entries
+            .map { (service, provider) -> PluginServiceBinding(service, provider) }
+            .sortedBy { it.service },
+    )
 
     /**
      * 单个插件的注册作用域。所有 undo 都是幂等的移除/恢复动作，
@@ -176,8 +220,16 @@ class PluginHost(
 
         override fun <T : Any> provide(key: ServiceKey<T>, impl: T) {
             val previous = services.put(key.name, impl)
+            val previousProvider = serviceProviders.put(key.name, pluginId)
             undoStack += {
-                if (previous == null) services.remove(key.name) else services[key.name] = previous
+                if (previous == null) {
+                    services.remove(key.name)
+                    serviceProviders.remove(key.name)
+                } else {
+                    services[key.name] = previous
+                    if (previousProvider == null) serviceProviders.remove(key.name)
+                    else serviceProviders[key.name] = previousProvider
+                }
             }
         }
 
@@ -262,5 +314,10 @@ class PluginHost(
             undoStack.asReversed().forEach { runCatching(it) }
             undoStack.clear()
         }
+    }
+
+    companion object {
+        /** 诊断里表示服务由宿主 `provideGlobal` 提供。 */
+        const val HOST_PROVIDER = "host"
     }
 }

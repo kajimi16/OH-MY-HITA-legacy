@@ -1,6 +1,9 @@
 package com.stupidtree.hita.kernel
 
+import com.stupidtree.hita.api.HITA_API_VERSION
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -25,5 +28,41 @@ class PluginLoaderTest {
         val a = tmp.newFile("a.dex").apply { writeText("v1") }
         val b = tmp.newFile("b.dex").apply { writeText("v2") }
         assert(PluginLoader.sha256(a) != PluginLoader.sha256(b))
+    }
+
+    @Test
+    fun incompatibleMetaIsRejectedBeforeTheDexFileIsTouched() {
+        val host = PluginHost(tmp.newFolder("plugins"))
+        val loader = PluginLoader(host)
+        val missingDex = tmp.newFile("missing.dex").apply { delete() }
+
+        val error = assertThrows(PluginRejectedException::class.java) {
+            loader.loadAndInstall(
+                dexFile = missingDex,
+                entryClassName = "example.Plugin",
+                optimizedDir = tmp.newFolder("opt"),
+                meta = PluginArtifactMeta("future", requiresApi = HITA_API_VERSION + 1),
+            )
+        }
+
+        assertTrue(error.reasons.single().contains("requires host api"))
+        val failure = host.diagnostics().failed.single()
+        assertEquals("future", failure.id)
+        assertEquals(PluginFailurePhase.COMPATIBILITY, failure.phase)
+    }
+
+    @Test
+    fun compatibleMetaStillRequiresARealDexFile() {
+        val loader = PluginLoader(PluginHost(tmp.newFolder("plugins2")))
+        val missingDex = tmp.newFile("missing2.dex").apply { delete() }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            loader.loadAndInstall(
+                dexFile = missingDex,
+                entryClassName = "example.Plugin",
+                optimizedDir = tmp.newFolder("opt2"),
+                meta = PluginArtifactMeta("ok", requiresApi = HITA_API_VERSION),
+            )
+        }
     }
 }
