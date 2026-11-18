@@ -62,5 +62,15 @@
       "content_ratio_percent": 3.058,
       "dock_excluded": true
     }
+  ],
+  "functional_checks": [
+    {
+      "page": "timetable",
+      "state": "synthetic 3 fake courses",
+      "fixture": "fixtures/synthetic.ics.txt",
+      "ours": "ours/timetable__synthetic.png",
+      "ours_sha256": "bc26a9a178a70e9d43b99e628cbbfdf546fee7d3d8714631d45d8c2f6f69752e",
+      "note": "No pixel diff against upstream: upstream holds a different timetable. Header bounds: title 116/117, chip x 376/375, month/date 343/341."
+    }
   ]
 }

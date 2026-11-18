@@ -390,13 +390,13 @@ private fun TimetablePage(service: TimetableService?) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "第${week}周",
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 18.sp,
-                modifier = Modifier.weight(1f),
+                fontSize = 24.sp,
             )
+            Spacer(Modifier.width(62.dp))
             Text(
                 timetable?.name ?: "默认课表1",
                 color = Color(0xFF6B7280),
@@ -406,7 +406,8 @@ private fun TimetablePage(service: TimetableService?) {
                     .padding(horizontal = 10.dp, vertical = 5.dp),
             )
         }
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp, start = 12.dp, end = 8.dp), verticalAlignment = Alignment.Bottom) {
+        Spacer(Modifier.height(24.dp))
+        Row(Modifier.fillMaxWidth().padding(top = 0.dp, start = 0.dp, end = 8.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     SimpleDateFormat("M月", Locale.CHINA).format(Date(start)),

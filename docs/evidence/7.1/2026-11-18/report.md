@@ -20,6 +20,13 @@
 
 Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floating dock.
 
+## Synthetic timetable check
+
+- Fixture: `fixtures/synthetic.ics.txt` (fake courses only)
+- Our header: title 116 vs upstream 117; chip x 376 vs 375; month/date 343 vs 341
+- No pixel ratio: upstream has a different timetable data set
+- Screenshot: `ours/timetable__synthetic.png`
+
 ## Source of truth
 
 - Screenshots: `upstream/`, `ours/`
