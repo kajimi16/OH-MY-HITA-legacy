@@ -12,9 +12,21 @@ enum class PluginFailurePhase {
     INSTALL,
 }
 
+/**
+ * 已安装插件的一条诊断记录。
+ *
+ * [origin] / [version] / [requires] / [provides] 全部来自激活时提交的
+ * [PluginDescriptor]；旧插件没有描述符时分别回落到 `UNKNOWN`、null、空集合。
+ * 列表保持稳定顺序（按 id 排序，`requires` / `provides` 内部按名称排序），
+ * 让导出的 JSON 可以直接比对。
+ */
 data class PluginSnapshot(
     val id: String,
     val requiresApi: Int,
+    val origin: PluginOrigin = PluginOrigin.UNKNOWN,
+    val version: String? = null,
+    val requires: List<String> = emptyList(),
+    val provides: List<String> = emptyList(),
 )
 
 data class PluginFailure(

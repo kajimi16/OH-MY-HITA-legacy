@@ -4,6 +4,7 @@ import com.google.gson.JsonParser
 import com.stupidtree.hita.kernel.PluginArtifactMeta
 import com.stupidtree.hita.kernel.PluginDescriptor
 import com.stupidtree.hita.kernel.PluginOrigin
+import com.stupidtree.hitax.BuildConfig
 
 /**
  * 构建期插件清单的一条记录。
@@ -41,6 +42,8 @@ data class PluginEntry(
         requires = requires,
         provides = provides,
         origin = PluginOrigin.BUILTIN,
+        // 内置插件随 APK 发布，清单没写版本时用宿主版本，保证诊断里版本可读。
+        version = version ?: BuildConfig.VERSION_NAME,
     )
 }
 

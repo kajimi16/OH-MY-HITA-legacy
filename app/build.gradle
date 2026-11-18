@@ -309,6 +309,18 @@ tasks.register('verifyMarketIndex') {
 
         def builtinFile = rootProject.file('app/src/main/assets/plugins.json')
         if (!builtinFile.isFile()) throw new GradleException("app/src/main/assets/plugins.json 不存在")
+        // 已知服务名只来自 :api 的 ServiceKey 声明；内置插件清单里的 requires/provides
+        // 必须使用其中一个，否则是拼写错误或引用了插件私有/已删除的服务。
+        def knownServices = new TreeSet<String>()
+        def apiDir = rootProject.file('api/src/main/java/com/stupidtree/hita/api')
+        if (!apiDir.isDirectory()) throw new GradleException("api 源码目录不存在：${apiDir}")
+        rootProject.fileTree(apiDir).matching { include '**/*.kt' }.each { apiFile ->
+            def serviceMatcher = apiFile.text =~ /ServiceKey<[^>]+>\s*\(\s*"([^"]+)"\s*\)/
+            while (serviceMatcher.find()) knownServices.add(serviceMatcher.group(1))
+        }
+        if (knownServices.isEmpty()) {
+            throw new GradleException("无法从 :api 源码解析任何 ServiceKey.name")
+        }
         def builtinJson = new groovy.json.JsonSlurper().parse(builtinFile)
         (builtinJson.plugins ?: []).each { entry ->
             if (!entry.id) {
@@ -317,6 +329,13 @@ tasks.register('verifyMarketIndex') {
                 errors << "重复 builtin id: ${entry.id}"
             }
             if (!entry.class) errors << "builtin:${entry.id}: 缺少 class"
+            ['requires', 'provides'].each { field ->
+                (entry[field] ?: []).each { service ->
+                    if (!(service in knownServices)) {
+                        errors << "builtin:${entry.id}: ${field} 引用了 :api 中不存在的服务 '${service}'"
+                    }
+                }
+            }
         }
 
         def known = seen as Set

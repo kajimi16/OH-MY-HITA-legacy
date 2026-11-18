@@ -89,6 +89,22 @@
 
                 </LinearLayout>
 
+                <TextView
+                    android:id="@+id/export_diagnostics"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/element_rounded_button_bg_white"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center"
+                    android:paddingStart="8dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="8dp"
+                    android:paddingBottom="4dp"
+                    android:text="导出诊断"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+
             </LinearLayout>
 
             <androidx.appcompat.widget.Toolbar

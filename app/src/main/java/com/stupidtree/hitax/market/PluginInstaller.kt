@@ -252,6 +252,7 @@ class PluginInstaller(
         requires = requires,
         provides = provides,
         origin = PluginOrigin.DEX,
+        version = version,
     )
 
     private fun MarketPlugin.isExempt(): Boolean = PluginExemptions.isExempt(
