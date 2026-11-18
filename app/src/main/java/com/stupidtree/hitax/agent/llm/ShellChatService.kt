@@ -1,16 +1,70 @@
 package com.stupidtree.hitax.agent.llm
 
 import android.app.Application
+import com.stupidtree.hita.api.PluginToolHandler
+import com.stupidtree.hita.api.PluginToolSpec
+import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.agent.core.AgentTraceEvent
+import com.stupidtree.hitax.market.PluginTrustStore
+import com.stupidtree.hitax.plugin.PluginCatalog
 import com.stupidtree.hitax.agent.tools.ReActToolInput
 import com.stupidtree.hitax.agent.tools.ReActToolRegistry
+import com.stupidtree.hitax.agent.tools.SuspendingReActTool
+import com.stupidtree.hitax.agent.tools.ToolParam
+import com.stupidtree.hitax.agent.tools.ToolParamType
+import com.stupidtree.hitax.agent.tools.ToolSpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** 宿主版 ReAct：只依赖已移植的工具注册表，不依赖上游 EASRepository。 */
 object ShellChatService {
-    private val toolRegistry = ReActToolRegistry.createDefault()
     private const val MAX_STEPS = 6
+
+    private fun registry(application: Application): ReActToolRegistry {
+        val registry = ReActToolRegistry.createDefault()
+        val host = (application as? HApplication)?.pluginHost ?: return registry
+        val trustStore = PluginTrustStore(application)
+        host.pluginTools()
+            .filter { binding ->
+                // 内置插件随 APK 发布；第三方 dex 插件必须过 verified 白名单。
+                PluginCatalog.entry(application, binding.pluginId) != null ||
+                    trustStore.isVerified(binding.pluginId)
+            }
+            .forEach { binding ->
+                val spec = binding.spec.toToolSpec(binding.handler) ?: return@forEach
+                // 插件不能悄悄覆盖宿主内置工具。
+                if (registry.spec(spec.name) == null) registry.register(spec)
+            }
+        return registry
+    }
+
+    private fun PluginToolSpec.toToolSpec(handler: PluginToolHandler): ToolSpec? {
+        if (name.isBlank() || description.isBlank()) return null
+        val params = parameters.map { param ->
+            val type = when (param.type.lowercase()) {
+                "integer" -> ToolParamType.INTEGER
+                "number" -> ToolParamType.NUMBER
+                "boolean" -> ToolParamType.BOOLEAN
+                else -> ToolParamType.STRING
+            }
+            ToolParam(
+                name = param.name,
+                type = type,
+                required = param.required,
+                description = param.description,
+                aliases = param.aliases,
+                enumValues = param.enumValues,
+            )
+        }
+        return ToolSpec(
+            name = name,
+            description = description,
+            parameters = params,
+            maxObservationChars = maxObservationChars.coerceIn(1, 20_000),
+            timeoutMs = timeoutMs.coerceIn(1, 120_000),
+            tool = SuspendingReActTool { input -> handler.execute(input.actionInput) },
+        )
+    }
 
     suspend fun chat(
         history: List<ChatMessage>,
@@ -20,7 +74,8 @@ object ShellChatService {
     ): LlmChatResult = withContext(Dispatchers.IO) {
         val userMessage = history.lastOrNull { it.role == "user" }?.content.orEmpty()
         if (userMessage.isBlank()) return@withContext LlmChatResult.Error("消息为空")
-        val messages = mutableListOf(ChatMessage(role = "system", content = systemPrompt()))
+        val toolRegistry = registry(application)
+        val messages = mutableListOf(ChatMessage(role = "system", content = systemPrompt(toolRegistry)))
         messages += history
         val observations = mutableListOf<String>()
 
@@ -64,7 +119,7 @@ object ShellChatService {
         )
     }
 
-    private fun systemPrompt(): String = buildString {
+    private fun systemPrompt(toolRegistry: ReActToolRegistry): String = buildString {
         append("你是 HITA 课表助手。按 ReAct 格式回答。\n")
         append("格式：\n思考：...\n动作：工具名\n动作输入：<JSON>\n")
         append("或者：\n答案：...\n\n")

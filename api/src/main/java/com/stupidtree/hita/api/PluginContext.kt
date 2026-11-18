@@ -31,6 +31,9 @@ interface PluginContext {
     /** 同步决策 hook；注册随插件卸载撤销。 */
     val hooks: PluginHooks
 
+    /** 面向模型的工具贡献点；注册随插件卸载撤销。 */
+    val tools: PluginToolRegistry
+
     /** 导航贡献点。 */
     val nav: NavRegistry
 
