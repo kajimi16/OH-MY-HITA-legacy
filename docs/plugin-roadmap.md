@@ -448,6 +448,9 @@ fun interface Decision<T> {
 
 剩余高风险项：组合 materializer 与启动重放、UI 安装的完整原子回滚（已补旧 APK 备份/恢复但仍非跨进程事务）。
 
+可执行任务拆分、Dumate 交接格式与验收命令见
+[`2026-11-18-plugin-remaining-work.md`](plans/2026-11-18-plugin-remaining-work.md)。
+
 ## 7. 参考
 
 - dsh 架构：<https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.zh.md>
