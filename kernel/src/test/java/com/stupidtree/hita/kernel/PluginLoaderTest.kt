@@ -52,6 +52,26 @@ class PluginLoaderTest {
     }
 
     @Test
+    fun minSdkIsRejectedBeforeTheDexFileIsTouched() {
+        val host = PluginHost(tmp.newFolder("plugins"))
+        val loader = PluginLoader(host)
+        val missingDex = tmp.newFile("missing-sdk.dex").apply { delete() }
+
+        val error = assertThrows(PluginRejectedException::class.java) {
+            loader.loadAndInstall(
+                dexFile = missingDex,
+                entryClassName = "example.Plugin",
+                optimizedDir = tmp.newFolder("opt-sdk"),
+                meta = PluginArtifactMeta("old-device", minSdk = 99),
+                sdkInt = 30,
+            )
+        }
+
+        assertTrue(error.reasons.single().contains("requires Android API 99"))
+        assertEquals(PluginFailurePhase.COMPATIBILITY, host.diagnostics().failed.single().phase)
+    }
+
+    @Test
     fun compatibleMetaStillRequiresARealDexFile() {
         val loader = PluginLoader(PluginHost(tmp.newFolder("plugins2")))
         val missingDex = tmp.newFile("missing2.dex").apply { delete() }

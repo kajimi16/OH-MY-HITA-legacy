@@ -1,6 +1,7 @@
 package com.stupidtree.hitax.plugin
 
 import android.app.Application
+import android.os.Build
 import android.util.Log
 import com.stupidtree.hita.api.HITA_API_VERSION
 import com.stupidtree.hita.api.Plugin
@@ -48,6 +49,7 @@ object PluginCatalog {
         val result = PluginCompatibility.check(
             meta,
             hostAbi = BuildConfig.API_ABI.takeIf { it.isNotBlank() },
+            sdkInt = Build.VERSION.SDK_INT,
             exempt = PluginExemptions.isExempt(
                 application,
                 meta.id,
@@ -73,6 +75,10 @@ object PluginCatalog {
             }
         }.onFailure {
             Log.e(TAG, "插件不可用（可能未打包）：${entry.className}", it)
+            runCatching {
+                (application as HApplication).pluginHost
+                    .reject(entry.id, it, PluginFailurePhase.LOAD)
+            }
         }.getOrNull()
     }
 
