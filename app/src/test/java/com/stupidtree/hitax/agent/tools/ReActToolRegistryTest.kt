@@ -4,6 +4,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -235,5 +236,128 @@ class ReActToolRegistryTest {
     fun codeFenceIsStrippedBeforeValidation() {
         val wrapped = "```json\n{\"name\":\"张老师\"}\n```"
         assertTrue(validate("search_teacher", wrapped).isEmpty())
+    }
+
+    @Test
+    fun prepareCallParsesOnceAndCanonicalizesAliases() {
+        val spec = registry.spec("search_teacher")!!
+        val prepared = registry.prepareCall(spec, """{"teacher_name":"张老师"}""") as PreparedCall.Valid
+
+        assertEquals("张老师", prepared.call.arguments.get("name").asString)
+        assertEquals("张老师", prepared.call.arguments.get("teacher_name").asString)
+        assertEquals(ReActToolRegistry.normalizeName("search_teacher"), prepared.call.name)
+    }
+
+    @Test
+    fun multiFieldToolKeepsTypedDefaults() {
+        val prepared = registry.prepareCall(
+            registry.spec("add_activity")!!,
+            """{"name":"组会","day_offset":1,"start_time":"15:00","end_time":"16:00"}""",
+        ) as PreparedCall.Valid
+
+        assertEquals(1, prepared.call.arguments.get("day_offset").asInt)
+        assertEquals("15:00", prepared.call.arguments.get("start_time").asString)
+        assertEquals(
+            "组会",
+            AddActivityTool().parseAddActivityInput(prepared.call.arguments).name,
+        )
+    }
+
+    @Test
+    fun everyMigratedCategoryRejectsMissingRequiredArguments() {
+        assertEquals(listOf("缺少参数 name"), validate("search_teacher", "{}"))
+        assertEquals(listOf("缺少参数 url"), validate("crawl_page", "{}"))
+        assertEquals(listOf("缺少参数 url"), validate("crawl_site", "{}"))
+        assertEquals(listOf("缺少参数 task_id"), validate("crawl_status", "{}"))
+        assertEquals(listOf("缺少参数 query"), validate("search_course", "{}"))
+        assertEquals(listOf("缺少参数 query"), validate("search_external_resource", "{}"))
+        assertEquals(listOf("缺少参数 query"), validate("rag_search", "{}"))
+        assertEquals(listOf("缺少参数 param"), validate("web_search", "{}"))
+        assertEquals(listOf("缺少参数 name"), validate("add_activity", "{}"))
+    }
+
+    @Test
+    fun zeroParameterToolAcceptsRawInputAndLeavesArgumentsEmpty() {
+        val prepared = registry.prepareCall(
+            registry.spec("get_timetable")!!,
+            "今天",
+        ) as PreparedCall.Valid
+
+        assertEquals("今天", prepared.call.actionInput)
+        assertEquals(0, prepared.call.arguments.size())
+    }
+
+    @Test
+    fun rawStringToolsMapTheSingleRequiredStringIntoArguments() {
+        val teacher = registry.prepareCall(
+            registry.spec("search_teacher")!!,
+            "张老师",
+        ) as PreparedCall.Valid
+        assertEquals("张老师", teacher.call.arguments.get("name").asString)
+
+        val course = registry.prepareCall(
+            registry.spec("search_course")!!,
+            "数据结构",
+        ) as PreparedCall.Valid
+        assertEquals("数据结构", course.call.arguments.get("query").asString)
+    }
+
+    @Test
+    fun multiFieldToolStillRejectsRawStringInput() {
+        val prepared = registry.prepareCall(registry.spec("add_activity")!!, "明天开会")
+        assertTrue(prepared is PreparedCall.Invalid)
+        assertEquals("动作输入必须是 JSON 对象", (prepared as PreparedCall.Invalid).message)
+    }
+
+    @Test
+    fun migratedToolParsersReadArgumentsInsteadOfRawInput() {
+        val arguments = com.google.gson.JsonParser.parseString(
+            """{"course_code":"CS101","start":10,"limit":20,"query":"栈"}""",
+        ).asJsonObject
+
+        val detail = GetCourseDetailTool()
+        assertEquals("CS101", detail.extractCourseCode(arguments))
+        assertEquals("栈", detail.extractFocusQuery(arguments))
+        assertEquals(GetCourseDetailTool.TextRange(10, 30), detail.extractCharRange(arguments))
+
+        val pageRange = CrawlPageTool().extractCharRange(
+            com.google.gson.JsonParser.parseString("""{"start":5,"char_end":9}""").asJsonObject,
+        )
+        assertEquals(CrawlPageTool.TextRange(5, 9), pageRange)
+
+        val classroom = SearchEmptyClassroomTool().parseParams(
+            com.google.gson.JsonParser.parseString("""{"week":3,"building":"A","day":9}""").asJsonObject,
+        )
+        assertEquals(3, classroom.week)
+        assertEquals("A", classroom.building)
+        assertNull(classroom.day)
+
+        val teacher = com.google.gson.JsonParser.parseString("""{"teacher_name":"李老师"}""").asJsonObject
+        assertEquals("李老师", SearchTeacherTool().extractQuery(teacher))
+    }
+
+    @Test
+    fun jsonSchemaMatchesCatalogContract() {
+        val teacher = com.google.gson.JsonParser.parseString(registry.jsonSchema("search_teacher")!!).asJsonObject
+        val teacherParams = teacher.getAsJsonObject("parameters")
+        assertEquals("object", teacherParams.get("type").asString)
+        assertEquals("name", teacherParams.getAsJsonArray("required").single().asString)
+        assertTrue(teacherParams.getAsJsonObject("properties").getAsJsonObject("name").get("aliases").asJsonArray
+            .any { it.asString == "teacher_name" })
+
+        val review = com.google.gson.JsonParser.parseString(registry.jsonSchema("submit_review")!!).asJsonObject
+        val reviewType = review.getAsJsonObject("parameters")
+            .getAsJsonObject("properties")
+            .getAsJsonObject("review_type")
+        assertEquals(5, reviewType.getAsJsonArray("enum").size())
+    }
+
+    @Test
+    fun submitReviewMissingFieldsFailsBeforeSideEffects() {
+        assertEquals(listOf("缺少参数 course_code", "缺少参数 content"), validate("submit_review", "{}"))
+        assertEquals(
+            listOf("参数 review_type 必须是 lecturer/course/course_teacher/section/new_course"),
+            validate("submit_review", """{"course_code":"CS1","content":"ok","review_type":"unknown"}"""),
+        )
     }
 }

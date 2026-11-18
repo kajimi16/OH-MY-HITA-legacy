@@ -5,16 +5,16 @@ import androidx.lifecycle.Observer
 import com.stupidtree.component.data.DataState
 import com.stupidtree.hita.api.ClassroomRoom
 import com.stupidtree.hita.api.EmptyClassroomService
+import com.google.gson.JsonObject
 import com.stupidtree.hitax.HApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class SearchEmptyClassroomTool : SuspendingReActTool {
     override suspend fun execute(input: ReActToolInput): String {
-        val params = parseParams(input.actionInput)
+        val params = parseParams(input.arguments)
         val service = (input.application as HApplication).pluginHost
             .service(EmptyClassroomService.KEY)
             ?: return "空教室服务不可用（教务插件未提供）"
@@ -63,16 +63,13 @@ class SearchEmptyClassroomTool : SuspendingReActTool {
         }.trimEnd()
     }
 
-    private data class Params(val week: Int, val building: String?, val day: Int?)
+    internal data class Params(val week: Int, val building: String?, val day: Int?)
 
-    private fun parseParams(raw: String): Params {
-        val json = runCatching { JSONObject(raw) }.getOrNull()
-        return Params(
-            week = json?.optInt("week", 1)?.coerceAtLeast(1) ?: 1,
-            building = json?.optString("building", "")?.takeIf { it.isNotBlank() },
-            day = json?.optInt("day", 0)?.takeIf { it in 1..7 },
-        )
-    }
+    internal fun parseParams(arguments: JsonObject): Params = Params(
+        week = (arguments.intArg("week") ?: 1).coerceAtLeast(1),
+        building = arguments.stringArg("building"),
+        day = arguments.intArg("day")?.takeIf { it in 1..7 },
+    )
 
     private suspend fun <T> LiveData<T>.await(timeoutMs: Long): T? =
         withContext(Dispatchers.Main) {

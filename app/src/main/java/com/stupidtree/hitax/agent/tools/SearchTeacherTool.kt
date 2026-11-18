@@ -2,18 +2,19 @@ package com.stupidtree.hitax.agent.tools
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.Observer
+import com.google.gson.JsonObject
 import com.stupidtree.component.data.DataState
 import com.stupidtree.hita.api.TeacherService
 import com.stupidtree.hitax.HApplication
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class SearchTeacherTool : SuspendingReActTool {
     override suspend fun execute(input: ReActToolInput): String {
-        val query = extractQuery(input.actionInput)
+        val query = extractQuery(input.arguments)
+            ?: input.actionInput.trim().removeSurrounding("{", "}")
         if (query.isBlank()) return "教师搜索失败：缺少教师姓名"
         val service = (input.application as HApplication).pluginHost
             .service(TeacherService.KEY)
@@ -36,12 +37,8 @@ class SearchTeacherTool : SuspendingReActTool {
         }.trimEnd()
     }
 
-    private fun extractQuery(raw: String): String {
-        val json = runCatching { JSONObject(raw) }.getOrNull()
-        return json?.optString("name", "")?.takeIf { it.isNotBlank() }
-            ?: json?.optString("teacher_name", "")?.takeIf { it.isNotBlank() }
-            ?: raw.trim().removeSurrounding("{", "}")
-    }
+    internal fun extractQuery(arguments: JsonObject): String? =
+        arguments.stringArg("name", "teacher_name")
 
     private suspend fun <T> LiveData<T>.await(timeoutMs: Long): T? =
         withContext(Dispatchers.Main) {

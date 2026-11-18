@@ -1,14 +1,15 @@
 package com.stupidtree.hitax.agent.tools
 
+import com.google.gson.JsonObject
 import com.stupidtree.hitax.agent.remote.AgentBackendClient
 
 class CrawlPageTool : ReActTool {
     override fun execute(input: ReActToolInput): String {
         return try {
-            val url = extractString(input.actionInput, "url", "param")
-                .ifBlank { input.actionInput.trim().removeSurrounding("{", "}").trim('"') }
+            val url = input.arguments.stringArg("url", "param")
+                ?: input.actionInput.trim().removeSurrounding("{", "}").trim('"')
             val page = AgentBackendClient.crawlPageSync(url) ?: return "无法获取页面内容"
-            val range = extractCharRange(input.actionInput) ?: TextRange(0, DEFAULT_PAGE_CHARS.coerceAtMost(page.length))
+            val range = extractCharRange(input.arguments) ?: TextRange(0, DEFAULT_PAGE_CHARS.coerceAtMost(page.length))
             val start = range.start.coerceIn(0, page.length)
             val end = range.end.coerceIn(start, page.length)
             buildString {
@@ -32,18 +33,10 @@ class CrawlPageTool : ReActTool {
         }
     }
 
-    private fun extractString(actionInput: String, vararg keys: String): String {
-        keys.forEach { key ->
-            val value = Regex(""""$key"\s*:\s*"([^"]+)"""").find(actionInput)?.groupValues?.getOrNull(1)?.trim()
-            if (!value.isNullOrBlank()) return value
-        }
-        return ""
-    }
-
-    private fun extractCharRange(actionInput: String): TextRange? {
-        val start = extractInt(actionInput, "start", "char_start", "offset", "from")
-        val end = extractInt(actionInput, "end", "char_end", "to")
-        val limit = extractInt(actionInput, "limit", "length")
+    internal fun extractCharRange(arguments: JsonObject): TextRange? {
+        val start = arguments.intArg("start", "char_start", "offset", "from")
+        val end = arguments.intArg("end", "char_end", "to")
+        val limit = arguments.intArg("limit", "length")
         return when {
             start != null && end != null -> TextRange(start, end)
             start != null && limit != null -> TextRange(start, start + limit)
@@ -52,15 +45,7 @@ class CrawlPageTool : ReActTool {
         }
     }
 
-    private fun extractInt(text: String, vararg keys: String): Int? {
-        keys.forEach { key ->
-            val value = Regex(""""$key"\s*:\s*(\d+)"""").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            if (value != null) return value
-        }
-        return null
-    }
-
-    private data class TextRange(val start: Int, val end: Int)
+    internal data class TextRange(val start: Int, val end: Int)
 
     private companion object {
         const val DEFAULT_PAGE_CHARS = 5000

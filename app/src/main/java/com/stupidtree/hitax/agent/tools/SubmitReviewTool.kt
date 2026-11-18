@@ -8,14 +8,14 @@ import java.util.Locale
 
 class SubmitReviewTool : ReActTool {
     override fun execute(input: ReActToolInput): String {
-        val courseCode = param(input.actionInput, "course_code")
-        val content = param(input.actionInput, "content")
-        val authorName = param(input.actionInput, "author_name").ifBlank { "匿名" }
-        val lecturerName = param(input.actionInput, "lecturer_name")
-        val teacherName = param(input.actionInput, "teacher_name")
-        val courseName = param(input.actionInput, "course_name")
-        val reviewType = param(input.actionInput, "review_type").ifBlank { "lecturer" }
-        val title = param(input.actionInput, "title").ifBlank { "课程评价" }
+        val courseCode = input.arguments.stringArg("course_code").orEmpty()
+        val content = input.arguments.stringArg("content").orEmpty()
+        val authorName = input.arguments.stringArg("author_name").orEmpty().ifBlank { "匿名" }
+        val lecturerName = input.arguments.stringArg("lecturer_name").orEmpty()
+        val teacherName = input.arguments.stringArg("teacher_name").orEmpty()
+        val courseName = input.arguments.stringArg("course_name").orEmpty()
+        val reviewType = input.arguments.stringArg("review_type").orEmpty().ifBlank { "lecturer" }
+        val title = input.arguments.stringArg("title").orEmpty().ifBlank { "课程评价" }
 
         if (courseCode.isBlank() || content.isBlank()) return "提交评价失败：缺少课程代码或评价内容"
 
@@ -64,7 +64,4 @@ class SubmitReviewTool : ReActTool {
         }
         return "评价提交失败：${result.error?.message ?: "未知错误"}"
     }
-
-    private fun param(text: String, key: String): String =
-        Regex(""""$key"\s*:\s*"([^"]*)"""").find(text)?.groupValues?.getOrNull(1)?.trim().orEmpty()
 }

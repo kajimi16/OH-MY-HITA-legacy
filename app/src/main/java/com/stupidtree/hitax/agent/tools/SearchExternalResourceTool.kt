@@ -2,6 +2,7 @@ package com.stupidtree.hitax.agent.tools
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.Observer
+import com.google.gson.JsonObject
 import com.stupidtree.component.data.DataState
 import com.stupidtree.hita.api.ResourceDataService
 import com.stupidtree.hitax.HApplication
@@ -15,7 +16,8 @@ import kotlin.coroutines.resume
 /** 通过宿主 ResourceDataService 搜 HOA 课程资源；插件缺席时返回明确错误。 */
 class SearchExternalResourceTool : SuspendingReActTool {
     override suspend fun execute(input: ReActToolInput): String {
-        val keyword = extractKeyword(input.actionInput)
+        val keyword = extractKeyword(input.arguments)
+            ?: input.actionInput.trim().removeSurrounding("{", "}").trim('"')
         if (keyword.isBlank()) return "资料搜索失败: 无法解析查询条件"
         val service = (input.application as HApplication).pluginHost.service(ResourceDataService.KEY)
             ?: return "资料搜索失败: 课程资源插件未安装"
@@ -42,13 +44,8 @@ class SearchExternalResourceTool : SuspendingReActTool {
         }
     }
 
-    private fun extractKeyword(actionInput: String): String {
-        listOf("query", "keyword", "course_name", "param").forEach { key ->
-            val value = Regex(""""$key"\s*:\s*"([^"]+)"""").find(actionInput)?.groupValues?.getOrNull(1)?.trim()
-            if (!value.isNullOrBlank()) return value
-        }
-        return actionInput.trim().removeSurrounding("{", "}").trim('"')
-    }
+    internal fun extractKeyword(arguments: JsonObject): String? =
+        arguments.stringArg("query", "keyword", "course_name", "param")
 
     private fun CourseResourceItem.toCard(keyword: String) = AgentResourceCard(
         title = courseName.ifBlank { courseCode.ifBlank { repoName } },

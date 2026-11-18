@@ -1,5 +1,6 @@
 package com.stupidtree.hitax.agent.tools
 
+import com.google.gson.JsonObject
 import com.stupidtree.hitax.HitaServices
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -8,7 +9,8 @@ import java.util.Locale
 /** 在宿主课表内按课程名/教师/地点检索，不依赖上游 TimetableAgentInput。 */
 class SearchTimetableTool : ReActTool {
     override fun execute(input: ReActToolInput): String {
-        val keyword = extractKeyword(input.actionInput)
+        val keyword = extractKeyword(input.arguments)
+            ?: input.actionInput.trim().removeSurrounding("{", "}")
         if (keyword.isBlank()) return "搜索失败: 无法解析关键词"
         val service = HitaServices.timetable(input.application) ?: return "课表服务不可用"
         val now = System.currentTimeMillis()
@@ -38,11 +40,6 @@ class SearchTimetableTool : ReActTool {
         }.trimEnd()
     }
 
-    private fun extractKeyword(actionInput: String): String {
-        listOf("query", "keyword", "param", "name").forEach { key ->
-            val value = Regex(""""$key"\s*:\s*"([^"]+)"""").find(actionInput)?.groupValues?.getOrNull(1)?.trim()
-            if (!value.isNullOrBlank()) return value
-        }
-        return actionInput.trim().removeSurrounding("{", "}")
-    }
+    internal fun extractKeyword(arguments: JsonObject): String? =
+        arguments.stringArg("query", "keyword", "param", "name")
 }

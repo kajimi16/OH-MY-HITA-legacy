@@ -134,7 +134,9 @@ class UiPluginManager(private val context: Context) {
 
 
     /**
-     * 从已落盘的文件安装；[expectedSha256] 来自市场索引，下载后先比对再落库。
+     * 从已准备好的文件安装；调用方负责下载/落 staging，[expectedSha256] 来自市场索引。
+     *
+     * 这里仍会重新计算哈希并和 [expectedSha256] 比对，防止准备与落盘之间文件被替换。
      */
     fun installFile(file: File, expectedSha256: String?): InstalledUiPlugin {
         val actual = sha256(file)
@@ -234,6 +236,9 @@ class UiPluginManager(private val context: Context) {
             throw t
         }
     }
+
+    /** 供 materializer 在准备阶段校验已下载的文件；安装阶段还会再校验一次。 */
+    fun sha256Of(file: File): String = sha256(file)
 
     fun uninstall(id: String) {
         runCatching { com.stupidtree.hitax.background.BackgroundTaskServiceImpl(context).cancelAll(id) }

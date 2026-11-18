@@ -77,18 +77,44 @@ class PluginInstaller(
     }.getOrDefault(emptyList())
 
     /**
-     * 安装一个市场插件。失败时抛异常，调用方负责提示；已产生的文件会被清掉。
+     * 准备阶段：下载到 `.staging-<id>/plugin.dex` 并校验 sha256。
+     *
+     * 不卸载旧插件、不改 `installed.json`；失败只清理自己的 staging。
      */
-    fun install(entry: MarketPlugin, indexBase: String?): Unit {
+    fun prepare(entry: MarketPlugin, indexBase: String?): PreparedArtifact.Dex {
         require(!CompositionStore.isKillSwitched(context, CompositionKind.DEX, entry.id)) {
             "插件已被宿主安全开关停用"
         }
-        val dir = File(root, entry.id)
-        val staging = File(root, ".staging-${entry.id}")
-        val backup = File(root, ".backup-${entry.id}")
+        val staging = File(root, "$STAGING_PREFIX${entry.id}")
         staging.deleteRecursively()
-        backup.deleteRecursively()
         staging.mkdirs()
+        val newDex = File(staging, "plugin.dex")
+        try {
+            fetch(entry, indexBase, newDex)
+
+            val actual = PluginLoader.sha256(newDex)
+            if (!actual.equals(entry.sha256, ignoreCase = true)) {
+                throw IllegalStateException("sha256 校验失败：期望 ${entry.sha256}，实际 $actual")
+            }
+            return PreparedArtifact.Dex(entry, newDex)
+        } catch (t: Throwable) {
+            // 下载/校验失败发生在替换之前：旧插件与旧文件都还在，不要动它们。
+            staging.deleteRecursively()
+            throw t
+        }
+    }
+
+    /**
+     * 把已准备好的 dex 换入运行时目录并装载。不访问网络。
+     *
+     * 失败时恢复旧文件与旧装载状态；staging 目录在成功和失败路径都会清理。
+     */
+    fun attach(prepared: PreparedArtifact.Dex) {
+        val entry = prepared.entry
+        val dir = File(root, entry.id)
+        val staging = prepared.stagedDex.parentFile ?: File(root, "$STAGING_PREFIX${entry.id}")
+        val backup = File(root, "$BACKUP_PREFIX${entry.id}")
+        backup.deleteRecursively()
         val wasEnabled = isEnabled(entry.id)
         val wasInstalledInHost = host.isInstalled(entry.id)
         val oldEntry = installed().firstOrNull { it.id == entry.id }
@@ -96,13 +122,7 @@ class PluginInstaller(
         var hostDetached = false
 
         try {
-            val newDex = File(staging, "plugin.dex")
-            fetch(entry, indexBase, newDex)
-
-            val actual = PluginLoader.sha256(newDex)
-            if (!actual.equals(entry.sha256, ignoreCase = true)) {
-                throw IllegalStateException("sha256 校验失败：期望 ${entry.sha256}，实际 $actual")
-            }
+            check(prepared.stagedDex.isFile) { "插件文件已丢失，请重新安装" }
 
             // 旧版本仍在内存里时先卸载，否则 PluginHost.install 会直接忽略新实例。
             if (wasInstalledInHost) {
@@ -114,7 +134,7 @@ class PluginInstaller(
                 swapped = true
             }
             dir.mkdirs()
-            check(newDex.renameTo(File(dir, "plugin.dex"))) { "插件落盘失败" }
+            check(prepared.stagedDex.renameTo(File(dir, "plugin.dex"))) { "插件落盘失败" }
 
             PluginLoader(host, logger = { m, e -> log(m, e) })
                 .loadAndInstall(
@@ -132,10 +152,8 @@ class PluginInstaller(
             saveInstalled(installed().filterNot { it.id == entry.id } + entry)
             saveDisabled(if (wasEnabled) disabledIds() - entry.id else disabledIds() + entry.id)
             backup.deleteRecursively()
-            staging.deleteRecursively()
             Log.i(TAG, "installed ${entry.id}@${entry.version}")
         } catch (t: Throwable) {
-            // 下载/校验/备份失败发生在替换之前：旧插件与旧文件都还在，不要动它们。
             if (swapped) {
                 host.uninstall(entry.id)
                 hostDetached = true
@@ -159,9 +177,24 @@ class PluginInstaller(
                     }.onFailure { log("rollback failed: ${entry.id}", it) }
                 }
             }
-            staging.deleteRecursively()
             throw t
+        } finally {
+            staging.deleteRecursively()
         }
+    }
+
+    /**
+     * 安装一个市场插件：prepare + attach 的兼容包装。
+     * 失败时抛异常，调用方负责提示；staging 会被清理。
+     */
+    fun install(entry: MarketPlugin, indexBase: String?) {
+        attach(prepare(entry, indexBase))
+    }
+
+    /** 清理所有未完成的 staging 目录（成功、失败、取消路径都适用）。 */
+    fun cleanupStaging() {
+        root.listFiles { file -> file.isDirectory && file.name.startsWith(STAGING_PREFIX) }
+            ?.forEach { it.deleteRecursively() }
     }
 
     fun uninstall(id: String) {
@@ -243,6 +276,8 @@ class PluginInstaller(
 
     companion object {
         private const val TAG = "PluginInstaller"
+        private const val STAGING_PREFIX = ".staging-"
+        private const val BACKUP_PREFIX = ".backup-"
 
         /** 容忍损坏/缺失的 disabled.json：宁可全部启用，也不要启动崩溃。 */
         internal fun parseDisabled(text: String?): Set<String> = runCatching {

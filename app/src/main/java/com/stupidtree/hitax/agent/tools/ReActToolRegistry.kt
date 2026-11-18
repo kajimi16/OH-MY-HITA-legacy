@@ -1,5 +1,6 @@
 package com.stupidtree.hitax.agent.tools
 
+import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -9,6 +10,16 @@ import com.stupidtree.hitax.agent.model.AgentResourceCard
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+
+internal sealed interface ParsedArguments {
+    data class Valid(val arguments: JsonObject) : ParsedArguments
+    data class Invalid(val message: String) : ParsedArguments
+}
+
+internal sealed interface PreparedCall {
+    data class Valid(val call: ToolCall) : PreparedCall
+    data class Invalid(val message: String) : PreparedCall
+}
 
 /**
  * ReAct 工具注册表：schema、执行前校验、guard、超时、后处理与截断都在这里统一。
@@ -73,6 +84,38 @@ class ReActToolRegistry {
         }
     }
 
+    /**
+     * 单个参数的 JSON Schema；供测试与未来模型使用。
+     * 人可读的 [catalog] 提示词格式保持不变。
+     */
+    fun jsonSchema(name: String): String? = specs[normalizeName(name)]?.let { spec ->
+        val properties = JsonObject()
+        val required = JsonArray()
+        spec.parameters.forEach { param ->
+            properties.add(param.name, JsonObject().apply {
+                addProperty("type", param.type.name.lowercase())
+                if (param.description.isNotBlank()) addProperty("description", param.description)
+                if (param.enumValues.isNotEmpty()) {
+                    add("enum", JsonArray().apply { param.enumValues.forEach { add(it) } })
+                }
+                if (param.aliases.isNotEmpty()) {
+                    add("aliases", JsonArray().apply { param.aliases.forEach { add(it) } })
+                }
+            })
+            if (param.required) required.add(param.name)
+        }
+        JsonObject().apply {
+            addProperty("name", spec.name)
+            addProperty("description", spec.description)
+            add("parameters", JsonObject().apply {
+                addProperty("type", "object")
+                add("properties", properties)
+                if (required.size() > 0) add("required", required)
+                if (spec.allowRawString) addProperty("x-allowRawString", true)
+            })
+        }.toString()
+    }
+
     suspend fun execute(
         name: String,
         input: ReActToolInput,
@@ -80,13 +123,19 @@ class ReActToolRegistry {
     ): ToolExecution {
         val spec = specs[normalizeName(name)]
             ?: return ToolExecution("未知工具：$name", error = true)
-        val cleaned = clean(input.actionInput)
-        val call = ToolCall(spec.name, cleaned, input.userMessage)
+        val prepared = prepareCall(spec, input.actionInput, input.userMessage)
+        if (prepared is PreparedCall.Invalid) {
+            return ToolExecution("参数错误：${prepared.message}", error = true)
+        }
+        val call = (prepared as PreparedCall.Valid).call
+        val cleaned = call.actionInput
+        val arguments = call.arguments
         val cards = mutableListOf<AgentResourceCard>()
         val result = runPipeline(spec, call, onTrace) {
             spec.tool.execute(
                 input.copy(
                     actionInput = cleaned,
+                    arguments = arguments,
                     onResourceCards = { produced ->
                         cards += produced
                         input.onResourceCards(produced)
@@ -127,7 +176,7 @@ class ReActToolRegistry {
             }
         }
 
-        val argumentErrors = validate(spec, call.actionInput)
+        val argumentErrors = validateArguments(spec, call.arguments)
         if (argumentErrors.isNotEmpty()) {
             return ToolExecution("参数错误：${argumentErrors.joinToString("；")}", error = true)
         }
@@ -182,24 +231,53 @@ class ReActToolRegistry {
         return result
     }
 
-    internal fun validate(spec: ToolSpec, actionInput: String): List<String> {
+    /** 供执行路径与测试复用：只解析一次并生成带参数对象的调用。 */
+    internal fun prepareCall(
+        spec: ToolSpec,
+        actionInput: String,
+        userMessage: String = "",
+    ): PreparedCall {
+        val cleaned = clean(actionInput)
+        return when (val parsed = parseArguments(spec, cleaned)) {
+            is ParsedArguments.Invalid -> PreparedCall.Invalid(parsed.message)
+            is ParsedArguments.Valid ->
+                PreparedCall.Valid(ToolCall(spec.name, cleaned, userMessage, parsed.arguments))
+        }
+    }
+
+    /** 兼容旧测试/调用：先解析再校验；执行路径使用 [prepareCall] 的结果。 */
+    internal fun validate(spec: ToolSpec, actionInput: String): List<String> =
+        when (val parsed = parseArguments(spec, actionInput)) {
+            is ParsedArguments.Invalid -> listOf(parsed.message)
+            is ParsedArguments.Valid -> validateArguments(spec, parsed.arguments)
+        }
+
+    /**
+     * 把模型输出解析成参数对象，只在这里做一次。
+     * 空白输入与零参数工具允许没有 JSON；[ToolSpec.allowRawString] 仅映射到唯一的必填 string 参数。
+     */
+    internal fun parseArguments(spec: ToolSpec, actionInput: String): ParsedArguments {
         val cleaned = clean(actionInput)
         val json = when {
             cleaned.startsWith("{") -> runCatching {
                 JsonParser.parseString(cleaned).asJsonObject
-            }.getOrNull() ?: return listOf("动作输入不是合法 JSON 对象")
+            }.getOrNull() ?: return ParsedArguments.Invalid("动作输入不是合法 JSON 对象")
             cleaned.isBlank() -> JsonObject()
             spec.parameters.isEmpty() -> JsonObject()
             spec.allowRawString -> {
                 val required = spec.parameters.filter { it.required }
                 if (required.size != 1 || required.single().type != ToolParamType.STRING) {
-                    return listOf("动作输入必须是 JSON 对象")
+                    return ParsedArguments.Invalid("动作输入必须是 JSON 对象")
                 }
                 JsonObject().apply { addProperty(required.single().name, cleaned) }
             }
-            else -> return listOf("动作输入必须是 JSON 对象")
+            else -> return ParsedArguments.Invalid("动作输入必须是 JSON 对象")
         }
+        return ParsedArguments.Valid(canonicalizeArguments(spec, json))
+    }
 
+    internal fun validateArguments(spec: ToolSpec, arguments: JsonObject): List<String> {
+        val json = arguments
         val errors = mutableListOf<String>()
         spec.parameters.forEach { param ->
             val presentKey = (listOf(param.name) + param.aliases).firstOrNull { json.has(it) }

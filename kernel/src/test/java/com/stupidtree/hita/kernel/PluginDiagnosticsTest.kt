@@ -85,4 +85,75 @@ class PluginDiagnosticsTest {
         assertTrue(host.diagnostics().failed.isEmpty())
         assertEquals(listOf("same"), host.diagnostics().installed.map { it.id })
     }
+
+    @Test
+    fun declaredServiceThatIsActuallyProvidedIsNotReported() {
+        val host = newHost()
+        val key = ServiceKey<String>("svc")
+
+        host.install(
+            TestPlugin("provider") { ctx -> ctx.provide(key, "ok") },
+            PluginDescriptor("provider", provides = setOf("svc")),
+        )
+
+        assertTrue(host.diagnostics().declaredProvides.isEmpty())
+    }
+
+    @Test
+    fun declaredServiceWithoutProviderIsReportedButPluginStaysInstalled() {
+        val host = newHost()
+
+        host.install(
+            TestPlugin("ghost"),
+            PluginDescriptor("ghost", provides = setOf("b.service", "a.service")),
+        )
+
+        assertEquals(
+            listOf(
+                PluginDeclaredProvides("ghost", "a.service", null),
+                PluginDeclaredProvides("ghost", "b.service", null),
+            ),
+            host.diagnostics().declaredProvides,
+        )
+        // 声明只是清单提示，不影响激活。
+        assertTrue(host.isInstalled("ghost"))
+        assertTrue(host.diagnostics().failed.isEmpty())
+    }
+
+    @Test
+    fun conflictRejectedDeclarationShowsTheActualProvider() {
+        val host = newHost()
+        val key = ServiceKey<String>("svc")
+
+        host.install(
+            TestPlugin("first") { ctx -> ctx.provide(key, "first") },
+            PluginDescriptor("first", provides = setOf("svc")),
+        )
+        host.install(
+            TestPlugin("second") { ctx -> ctx.provide(key, "second") },
+            PluginDescriptor("second", provides = setOf("svc")),
+        )
+
+        assertEquals(
+            listOf(PluginDeclaredProvides("second", "svc", "first")),
+            host.diagnostics().declaredProvides,
+        )
+    }
+
+    @Test
+    fun declaredServiceHeldByHostShowsHostAsActualProvider() {
+        val host = newHost()
+        val key = ServiceKey<String>("svc")
+        host.provideGlobal(key, "host")
+
+        host.install(
+            TestPlugin("claimant") { ctx -> ctx.provide(key, "plugin") },
+            PluginDescriptor("claimant", provides = setOf("svc")),
+        )
+
+        assertEquals(
+            listOf(PluginDeclaredProvides("claimant", "svc", PluginHost.HOST_PROVIDER)),
+            host.diagnostics().declaredProvides,
+        )
+    }
 }
