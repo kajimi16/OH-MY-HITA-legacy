@@ -21,6 +21,7 @@ data class PluginEntry(
     val maxHostApi: Int? = null,
     val apiAbi: String? = null,
     val minSdk: Int? = null,
+    val version: String? = null,
     val requires: Set<String> = emptySet(),
     val provides: Set<String> = emptySet(),
 ) {
@@ -31,6 +32,7 @@ data class PluginEntry(
         maxHostApi = maxHostApi,
         apiAbi = apiAbi,
         minSdk = minSdk,
+        version = version,
     )
 
     fun descriptor(): PluginDescriptor = PluginDescriptor(
@@ -59,6 +61,7 @@ object PluginEntries {
                 maxHostApi = obj.get("maxHostApi")?.asInt,
                 apiAbi = obj.get("apiAbi")?.asString,
                 minSdk = obj.get("minSdk")?.asInt,
+                version = obj.get("version")?.asString,
                 requires = obj.getAsJsonArray("requires")
                     ?.mapNotNull { it.asString }?.toSet().orEmpty(),
                 provides = obj.getAsJsonArray("provides")

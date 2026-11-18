@@ -37,6 +37,14 @@
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true">
 
+        <receiver
+            android:name=".debug.PluginDiagnosticsReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.stupidtree.hitax.DEBUG_DUMP_PLUGINS" />
+            </intent-filter>
+        </receiver>
+
         <activity
             android:name=".uiplugin.PluginUiActivity"
             android:exported="false"
