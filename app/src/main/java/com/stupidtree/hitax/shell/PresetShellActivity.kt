@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -43,12 +44,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,6 +65,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.text.style.TextOverflow
 import com.stupidtree.hita.api.TimetableService
 import com.stupidtree.hitax.HApplication
+import com.stupidtree.hitax.R
 import com.stupidtree.hitax.data.model.timetable.EventItem
 import com.stupidtree.hitax.shell.homework.HomeworkRepository
 import com.stupidtree.hitax.shell.homework.HomeworkScreen
@@ -123,7 +129,7 @@ class PresetShellActivity : AppCompatActivity() {
     }
 }
 
-private data class ShellTab(val title: String, val glyph: String)
+private data class ShellTab(val title: String, val iconRes: Int)
 
 @Composable
 private fun HitaAndroidShell(
@@ -132,12 +138,12 @@ private fun HitaAndroidShell(
     agentViewModel: AgentChatViewModel,
 ) {
     val tabs = remember { listOf(
-        ShellTab("待办", "✓"),
-        ShellTab("今日", "●"),
-        ShellTab("时间表", "▦"),
-        ShellTab("助手", "✦"),
-        ShellTab("资讯", "▤"),
-        ShellTab("更多", "⋯"),
+        ShellTab("待办", R.drawable.ic_baseline_check_24),
+        ShellTab("今日", R.drawable.ic_nav_today),
+        ShellTab("时间表", R.drawable.ic_nav_timetable),
+        ShellTab("助手", R.drawable.ic_baseline_toys_24),
+        ShellTab("资讯", R.drawable.ic_nav_blog),
+        ShellTab("更多", R.drawable.ic_nav_navigation),
     ) }
     var selected by remember { mutableIntStateOf(1) }
     Column(Modifier.fillMaxSize()) {
@@ -153,28 +159,51 @@ private fun HitaAndroidShell(
             }
         }
         Box(Modifier.fillMaxWidth().padding(bottom = 4.dp), contentAlignment = Alignment.BottomCenter) {
+            val availableWidth = LocalConfiguration.current.screenWidthDp.dp - 32.dp
+            val tabWidth = minOf(56.dp, availableWidth / tabs.size.coerceAtLeast(1))
+            val barWidth = tabWidth * tabs.size + 8.dp
+            val indicatorOffset by animateDpAsState(
+                targetValue = tabWidth * selected,
+                label = "shell_tab_indicator",
+            )
             Surface(
                 shape = RoundedCornerShape(28.dp),
                 color = Color.White,
-                shadowElevation = 10.dp,
-                modifier = Modifier.width(288.dp).height(54.dp),
+                shadowElevation = 6.dp,
+                modifier = Modifier.width(barWidth).height(54.dp),
             ) {
-                Row(Modifier.fillMaxSize()) {
-                    tabs.forEachIndexed { index, tab ->
-                        Box(
-                            Modifier.weight(1f).fillMaxSize().clickable { selected = index },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    tab.glyph,
-                                    color = if (selected == index) Color(0xFF2563EB) else Color(0xFF6B7280),
-                                    fontSize = 15.sp,
-                                    lineHeight = 15.sp,
+                Box(Modifier.fillMaxSize().padding(4.dp)) {
+                    Surface(
+                        modifier = Modifier
+                            .offset(x = indicatorOffset)
+                            .width(tabWidth)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(22.dp),
+                        color = Color(0xFF3390EC).copy(alpha = 0.12f),
+                    ) {}
+                    Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                        tabs.forEachIndexed { index, tab ->
+                            val active = selected == index
+                            val tint = if (active) Color(0xFF0088CC) else Color(0xFF171717)
+                            Column(
+                                Modifier
+                                    .width(tabWidth)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(22.dp))
+                                    .clickable { selected = index }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Icon(
+                                    painter = painterResource(tab.iconRes),
+                                    contentDescription = null,
+                                    tint = tint,
+                                    modifier = Modifier.size(18.dp),
                                 )
                                 Text(
                                     tab.title,
-                                    color = if (selected == index) Color(0xFF2563EB) else Color(0xFF6B7280),
+                                    color = tint,
                                     fontSize = 10.sp,
                                     lineHeight = 10.sp,
                                 )
