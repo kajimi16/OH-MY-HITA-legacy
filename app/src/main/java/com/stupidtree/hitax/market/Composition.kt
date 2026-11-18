@@ -85,6 +85,18 @@ data class CompositionPlan(
  * 输入是当前事实（base / 已安装 / 索引可用 / 用户禁用 / kill switch）与前后两个 preset。
  * 输出覆盖 base、preset 引用以及“旧 preset 独有条目”，未提到的已安装 UI 插件保持原状。
  */
+/** 选择“上一次组合”的快照：当前索引缺失时回退到上次成功落盘的 preset。 */
+fun previousPresetFor(
+    activeId: String?,
+    nextId: String,
+    live: MarketPreset?,
+    saved: MarketPreset?,
+): MarketPreset? {
+    if (activeId == null) return null
+    if (activeId == nextId) return saved?.takeIf { it.id == activeId }
+    return live?.takeIf { it.id == activeId } ?: saved?.takeIf { it.id == activeId }
+}
+
 object CompositionResolver {
 
     fun resolve(

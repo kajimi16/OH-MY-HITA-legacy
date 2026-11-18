@@ -351,13 +351,12 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
             }
             // 在单线程执行器内读取，连续点击时第二次能看到第一次刚写入的 active preset。
             val activeId = PresetStateStore.activeId(ctx())
-            val previous = activeId?.let { id ->
-                if (id == preset.id) {
-                    CompositionStore.savedPreset(ctx())?.takeIf { it.id == id }
-                } else {
-                    presets.value?.firstOrNull { it.id == id }
-                }
-            }
+            val previous = previousPresetFor(
+                activeId = activeId,
+                nextId = preset.id,
+                live = activeId?.let { id -> presets.value?.firstOrNull { it.id == id } },
+                saved = CompositionStore.savedPreset(ctx()),
+            )
             val ui = availableUiPlugins.value.orEmpty().associateBy { it.id }
             val dex = items.value.orEmpty().associateBy { it.entry.id }
             val installedUi = uiPluginManager.installed().associateBy { it.id }

@@ -107,6 +107,21 @@ class CompositionResolverTest {
     }
 
     @Test
+    fun previousPresetFallsBackToSavedWhenIndexDroppedIt() {
+        val old = preset("old", PresetPluginRef("old-ui", "ui"))
+
+        assertEquals(old, previousPresetFor("old", "new", live = null, saved = old))
+    }
+
+    @Test
+    fun samePresetReapplyUsesSavedRefs() {
+        val old = preset("same", PresetPluginRef("old-ui", "ui"))
+        val changed = preset("same", PresetPluginRef("new-ui", "ui"))
+
+        assertEquals(old, previousPresetFor("same", changed.id, live = changed, saved = old))
+    }
+
+    @Test
     fun repeatedResolveIsDeterministic() {
         val next = preset(
             "new",
