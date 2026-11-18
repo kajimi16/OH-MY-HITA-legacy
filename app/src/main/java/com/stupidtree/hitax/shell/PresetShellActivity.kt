@@ -7,6 +7,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentContainerView
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,6 +75,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.text.style.TextOverflow
 import com.stupidtree.hita.api.TimetableService
@@ -122,8 +124,20 @@ class PresetShellActivity : AppCompatActivity() {
         val homeworkViewModel = HomeworkViewModel(HomeworkRepository(application))
         val agentViewModel = AgentChatViewModel(application)
         setContent {
-            MaterialTheme(
-                colorScheme = androidx.compose.material3.lightColorScheme(
+            val dark = isSystemInDarkTheme()
+            val scheme = if (dark) {
+                androidx.compose.material3.darkColorScheme(
+                    primary = Color(0xFF6FB3F2),
+                    onPrimary = Color(0xFF001B33),
+                    primaryContainer = Color(0xFF1E3A5F),
+                    onPrimaryContainer = Color(0xFFD6E4F5),
+                    background = Color(0xFF101317),
+                    surface = Color(0xFF1A1E24),
+                    onSurface = Color(0xFFF2F4F7),
+                    onSurfaceVariant = Color(0xFFAEB6C2),
+                )
+            } else {
+                androidx.compose.material3.lightColorScheme(
                     primary = Color(0xFF3390EC),
                     onPrimary = Color.White,
                     primaryContainer = Color(0xFFEBF4FC),
@@ -131,16 +145,25 @@ class PresetShellActivity : AppCompatActivity() {
                     background = Color(0xFFF6F7FA),
                     surface = Color.White,
                     onSurface = Color.Black,
-                    onSurfaceVariant = Color(0xFF808080),
-                ),
-            ) {
-                Surface(Modifier.fillMaxSize(), color = Color(0xFFF6F7FA)) {
+                    onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            MaterialTheme(colorScheme = scheme) {
+                Surface(Modifier.fillMaxSize(), color = scheme.background) {
                     HitaAndroidShell(service, homeworkViewModel, agentViewModel)
                 }
             }
         }
     }
 }
+
+@Composable
+private fun shellSecondary(): Color =
+    if (isSystemInDarkTheme()) Color(0xFFC2C8D2) else shellSecondary()
+
+@Composable
+private fun shellTertiary(): Color =
+    if (isSystemInDarkTheme()) Color(0xFFAEB6C2) else shellTertiary()
 
 private data class ShellTab(val title: String, val iconRes: Int)
 
@@ -181,7 +204,7 @@ private fun HitaAndroidShell(
             )
             Surface(
                 shape = RoundedCornerShape(28.dp),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 6.dp,
                 modifier = Modifier.width(barWidth).height(54.dp),
             ) {
@@ -197,7 +220,7 @@ private fun HitaAndroidShell(
                     Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                         tabs.forEachIndexed { index, tab ->
                             val active = selected == index
-                            val tint = if (active) Color(0xFF0088CC) else Color(0xFF171717)
+                            val tint = if (active) Color(0xFF0088CC) else MaterialTheme.colorScheme.onSurface
                             Column(
                                 Modifier
                                     .width(tabWidth)
@@ -244,7 +267,7 @@ private fun TodayPage(service: TimetableService?) {
     Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 20.4.dp)) {
         Text(
             dateText,
-            color = Color(0xFF111827),
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 24.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -334,7 +357,7 @@ private fun TodayPage(service: TimetableService?) {
                         modifier = Modifier.size(96.dp),
                     )
                     Spacer(Modifier.height(12.dp))
-                    Text("今天暂无课程或日程安排", color = Color(0xFF808080), fontSize = 16.sp)
+                    Text("今天暂无课程或日程安排", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
                 }
             }
         }
@@ -352,17 +375,17 @@ private fun TodayEventRow(event: EventItem) {
             androidx.compose.material3.Icon(
                 painter = painterResource(R.drawable.ic_circle_done),
                 contentDescription = null,
-                tint = Color(0xFF9CA3AF),
+                tint = shellTertiary(),
                 modifier = Modifier.size(22.dp),
             )
         }
         androidx.compose.material3.Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.weight(1f).padding(vertical = 4.dp),
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Text(event.name, color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(event.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -399,9 +422,9 @@ private fun TimetablePage(service: TimetableService?) {
                     modifier = Modifier.size(96.dp),
                 )
                 Spacer(Modifier.height(12.dp))
-                Text("还没有课表", color = Color(0xFF808080), fontSize = 16.sp)
+                Text("还没有课表", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))
-                Text("请先在功能中心导入课表", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+                Text("请先在功能中心导入课表", color = shellTertiary(), fontSize = 12.sp)
             }
         }
         return
@@ -418,10 +441,10 @@ private fun TimetablePage(service: TimetableService?) {
             Spacer(Modifier.width(16.dp))
             Text(
                 timetable?.name ?: "默认课表1",
-                color = Color(0xFF6B7280),
+                color = shellSecondary(),
                 fontSize = 14.sp,
                 modifier = Modifier
-                    .background(Color(0xFFE8F0FE), RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
                     .padding(horizontal = 10.dp, vertical = 5.dp),
             )
             Spacer(Modifier.weight(1f))
@@ -441,14 +464,14 @@ private fun TimetablePage(service: TimetableService?) {
                         }, "分享课表"
                     )
                 )
-            }) { Icon(Icons.Default.Share, "分享课表", tint = Color(0xFF6B7280)) }
+            }) { Icon(Icons.Default.Share, "分享课表", tint = shellSecondary()) }
             val isNight = (context.resources.configuration.uiMode and
                 android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
                 android.content.res.Configuration.UI_MODE_NIGHT_YES
             val theme = (context.applicationContext as HApplication).pluginHost
                 .service(com.stupidtree.hita.api.ThemeController.KEY)
             IconButton(onClick = { theme?.setNightMode(!isNight) }) {
-                Icon(Icons.Default.DarkMode, "切换深浅色", tint = Color(0xFF6B7280))
+                Icon(Icons.Default.DarkMode, "切换深浅色", tint = shellSecondary())
             }
         }
         Spacer(Modifier.height(16.4.dp))
@@ -456,7 +479,7 @@ private fun TimetablePage(service: TimetableService?) {
             Column(Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     SimpleDateFormat("M月", Locale.CHINA).format(Date(start)),
-                    color = Color(0xFF9CA3AF),
+                    color = shellTertiary(),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -465,14 +488,14 @@ private fun TimetablePage(service: TimetableService?) {
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     val date = ((start + index * 24L * 3600 * 1000) / 1000L)
                     Box(
-                        Modifier.size(26.dp).background(Color.White, CircleShape),
+                        Modifier.size(26.dp).background(MaterialTheme.colorScheme.surface, CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(day, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                     }
                     Text(
                         SimpleDateFormat("d", Locale.CHINA).format(Date(date * 1000L)),
-                        color = Color(0xFF9CA3AF),
+                        color = shellTertiary(),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(top = 2.dp),
@@ -500,7 +523,7 @@ private fun TimetablePage(service: TimetableService?) {
             Column(Modifier.width(48.dp)) {
                 repeat(12) { index ->
                     Box(Modifier.fillMaxWidth().height(hourHeight), contentAlignment = Alignment.TopStart) {
-                        Text("${index + 8}:00", color = Color(0xFF9CA3AF), fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+                        Text("${index + 8}:00", color = shellTertiary(), fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
                     }
                 }
             }
@@ -610,7 +633,7 @@ private fun MorePage(service: TimetableService?) {
                 Icon(
                     Icons.Default.DarkMode,
                     contentDescription = "切换深浅色",
-                    tint = Color(0xFF6B7280),
+                    tint = shellSecondary(),
                 )
             }
             IconButton(onClick = {
@@ -621,13 +644,13 @@ private fun MorePage(service: TimetableService?) {
                     )
                 )
             }) {
-                Icon(Icons.Default.Menu, contentDescription = "插件市场", tint = Color(0xFF6B7280))
+                Icon(Icons.Default.Menu, contentDescription = "插件市场", tint = shellSecondary())
             }
         }
         Spacer(Modifier.height(22.dp))
         Card(
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = Modifier.fillMaxWidth().clickable {
                 open("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
             },
@@ -648,14 +671,14 @@ private fun MorePage(service: TimetableService?) {
                     Text(userName ?: "未登录教务", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                     Text(
                         if (userName == null) "点击进行教务登录" else "已连接教务",
-                        color = Color(0xFF6B7280),
+                        color = shellSecondary(),
                         fontSize = 12.sp,
                     )
                 }
                 androidx.compose.material3.Icon(
                     androidx.compose.material.icons.Icons.Default.ChevronRight,
                     contentDescription = null,
-                    tint = Color(0xFF9CA3AF),
+                    tint = shellTertiary(),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -663,14 +686,14 @@ private fun MorePage(service: TimetableService?) {
         Spacer(Modifier.height(14.dp))
         Card(
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = Modifier.fillMaxWidth().clickable {
                 com.stupidtree.hitax.utils.ActivityUtils.startTimetableManager(context)
             },
         ) {
             Row(Modifier.fillMaxWidth().padding(start = 10.5.dp, end = 18.dp, top = 18.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(40.dp).background(Color(0xFFE8F0FE), CircleShape),
+                    Modifier.size(40.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     androidx.compose.material3.Icon(
@@ -681,14 +704,14 @@ private fun MorePage(service: TimetableService?) {
                     )
                 }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                    Text("课表管理", color = Color(0xFF6B7280), fontSize = 12.sp)
+                    Text("课表管理", color = shellSecondary(), fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     Text(if ((timetableCount ?: 0) == 0) "无课表" else "共${timetableCount}个课表", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
                 }
                 androidx.compose.material3.Icon(
                     androidx.compose.material.icons.Icons.Default.ChevronRight,
                     contentDescription = null,
-                    tint = Color(0xFF9CA3AF),
+                    tint = shellTertiary(),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -750,14 +773,14 @@ private fun MoreGroup(title: String, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Text(
             title,
-            color = Color.Black,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 8.dp),
         )
         Card(
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -783,7 +806,7 @@ private fun MoreRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(34.dp).background(Color(0xFFE8F0FE), CircleShape),
+            Modifier.size(34.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, null, tint = Color(0xFF3390EC), modifier = Modifier.size(20.dp))
@@ -791,10 +814,10 @@ private fun MoreRow(
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
             if (!subtitle.isNullOrBlank()) {
-                Text(subtitle, color = Color(0xFF808080), fontSize = 12.sp)
+                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
         }
-        Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF9CA3AF), modifier = Modifier.size(20.dp))
+        Icon(Icons.Default.ChevronRight, null, tint = shellTertiary(), modifier = Modifier.size(20.dp))
     }
 }
 
@@ -802,13 +825,13 @@ private fun MoreRow(
 private fun MoreCard(title: String, subtitle: String, onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         onClick = onClick,
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
             Text(title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
-            Text(subtitle, color = Color(0xFF6B7280), fontSize = 12.sp)
+            Text(subtitle, color = shellSecondary(), fontSize = 12.sp)
         }
     }
 }

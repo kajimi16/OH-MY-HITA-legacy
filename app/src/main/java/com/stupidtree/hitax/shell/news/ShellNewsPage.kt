@@ -8,6 +8,7 @@ import android.webkit.CookieManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,17 +62,19 @@ private data class BlogNode(val item: BlogItem, val children: List<BlogNode> = e
 @Composable
 internal fun ShellNewsPage() {
     var tab by remember { mutableIntStateOf(0) }
-    Column(Modifier.fillMaxSize().background(Color(0xFFFAFBFE))) {
+    val dark = isSystemInDarkTheme()
+    val pageBg = if (dark) MaterialTheme.colorScheme.background else Color(0xFFFAFBFE)
+    Column(Modifier.fillMaxSize().background(pageBg)) {
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, top = 20.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("资讯", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("资讯", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         }
         Spacer(Modifier.height(11.dp))
         TabRow(
             selectedTabIndex = tab,
-            containerColor = Color.White,
+            containerColor = if (dark) MaterialTheme.colorScheme.surface else Color.White,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("博客") })
@@ -127,7 +130,8 @@ private fun BlogTab() {
                                 }
                             },
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                            color = Color.White,
+                            color = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surface else Color.White,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
                             shadowElevation = 10.dp,
                         ) {
                             Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 14.2.dp)) {
@@ -211,7 +215,8 @@ private fun NoticeTab() {
                     Surface(
                         Modifier.fillMaxWidth().clickable { openUrl(context, notice.url) },
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                        color = Color.White,
+                        color = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surface else Color.White,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                         shadowElevation = 6.dp,
                     ) {
                         Column(Modifier.padding(14.dp)) {

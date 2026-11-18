@@ -76,3 +76,11 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 - PPTX：`【PowerPoint演示文稿】幻灯片1：PPTX attachment test content`
 
 未验证：图片/视频多模态（需要模型 Key）。
+
+
+## 深色模式冒烟（2026-11-19）
+
+- `cmd uimode night yes` 后六页可读：待办、今日、时间表、助手、资讯、更多。
+- 资讯页白底问题已修复。
+- 切回浅色后资讯页与改动前截图 0.000% 差异。
+- 未做上游深色逐页像素比例。
