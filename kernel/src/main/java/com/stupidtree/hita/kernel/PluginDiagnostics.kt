@@ -40,6 +40,11 @@ data class PluginConflict(
     val rejectedProvider: String,
 )
 
+data class PluginDegraded(
+    val id: String,
+    val missing: List<String>,
+)
+
 /**
  * 内核当前状态的一次不可变快照。
  *
@@ -51,5 +56,6 @@ data class PluginDiagnostics(
     val failed: List<PluginFailure>,
     val waiting: List<PluginWaiting>,
     val conflicts: List<PluginConflict>,
+    val degraded: List<PluginDegraded>,
     val services: List<PluginServiceBinding>,
 )

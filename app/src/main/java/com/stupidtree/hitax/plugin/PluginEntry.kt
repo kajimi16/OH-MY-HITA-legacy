@@ -2,6 +2,7 @@ package com.stupidtree.hitax.plugin
 
 import com.google.gson.JsonParser
 import com.stupidtree.hita.kernel.PluginArtifactMeta
+import com.stupidtree.hita.kernel.PluginDescriptor
 
 /**
  * 构建期插件清单的一条记录。
@@ -20,6 +21,8 @@ data class PluginEntry(
     val maxHostApi: Int? = null,
     val apiAbi: String? = null,
     val minSdk: Int? = null,
+    val requires: Set<String> = emptySet(),
+    val provides: Set<String> = emptySet(),
 ) {
     fun artifactMeta(): PluginArtifactMeta = PluginArtifactMeta(
         id = id,
@@ -28,6 +31,12 @@ data class PluginEntry(
         maxHostApi = maxHostApi,
         apiAbi = apiAbi,
         minSdk = minSdk,
+    )
+
+    fun descriptor(): PluginDescriptor = PluginDescriptor(
+        id = id,
+        requires = requires,
+        provides = provides,
     )
 }
 
@@ -50,6 +59,10 @@ object PluginEntries {
                 maxHostApi = obj.get("maxHostApi")?.asInt,
                 apiAbi = obj.get("apiAbi")?.asString,
                 minSdk = obj.get("minSdk")?.asInt,
+                requires = obj.getAsJsonArray("requires")
+                    ?.mapNotNull { it.asString }?.toSet().orEmpty(),
+                provides = obj.getAsJsonArray("provides")
+                    ?.mapNotNull { it.asString }?.toSet().orEmpty(),
             )
         }
     }.getOrDefault(emptyList())

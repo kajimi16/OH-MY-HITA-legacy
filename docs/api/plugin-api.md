@@ -29,7 +29,7 @@ interface Plugin {
 | 成员 | 说明 |
 |---|---|
 | `service(key)` | 取服务；未注册返回 `null` |
-| `provide(key, impl)` | 注册服务；同名覆盖，卸载时恢复上一个实现 |
+| `provide(key, impl)` | 注册服务；宿主全局优先，插件间先提供者胜出，后来者被拒绝并记录冲突 |
 | `filesDir()` | 该插件私有目录 |
 | `nav` | 导航贡献点（`NavEntry`） |
 | `searchTabs` | 搜索结果页 tab 贡献点（`SearchTab`） |
@@ -158,7 +158,7 @@ interface ThemeController { fun setNightMode(night: Boolean) }
 
 - `HITA_API_VERSION` 是契约的二进制版本；任何破坏性改动必须递增。
 - 内核装载时检查 `requiresApi <= HITA_API_VERSION`，不满足直接拒绝并记录原因。
-- 当前版本 **6**（6：新增原生课表外观服务 `TimetableAppearanceService`）。
+- 当前版本 **8**（8：`provide` 不再静默覆盖同名服务；7：新增提醒、后台任务、小组件服务）。
 
 变更记录：
 
@@ -170,6 +170,8 @@ interface ThemeController { fun setNightMode(night: Boolean) }
 | 4 | 新增 `CAP_MAIN_TAB`，运行时界面插件可占用主界面 tab |
 | 5 | 支持多个运行时主 tab；新增 `TextNavEntry` / `ViewSearchTab` |
 | 6 | 新增原生课表外观服务 `TimetableAppearanceService` |
+| 7 | 新增提醒、后台任务、桌面小组件服务（加法） |
+| 8 | `provide` 改为显式冲突：宿主全局优先，插件间先提供者胜出 |
 
 ## 运行时逻辑插件（T1）
 

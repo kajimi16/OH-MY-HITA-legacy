@@ -24,12 +24,14 @@ class PluginLoader(
      * @param entryClassName 实现 [Plugin] 的类全名
      * @param optimizedDir  该插件专属的 odex 目录
      * @param meta          加载前元数据；提供时先做兼容性拒绝，再碰 dex/类加载
+     * @param descriptor    依赖声明；为空时按无声明插件处理
      */
     fun loadAndInstall(
         dexFile: File,
         entryClassName: String,
         optimizedDir: File,
         meta: PluginArtifactMeta? = null,
+        descriptor: PluginDescriptor? = null,
     ): Plugin {
         if (meta != null) {
             when (val result = PluginCompatibility.check(meta)) {
@@ -71,11 +73,15 @@ class PluginLoader(
             throw error
         }
 
-        host.install(plugin)
+        host.install(plugin, descriptor ?: PluginDescriptor(plugin.id))
         host.failures()[plugin.id]?.let { failure ->
             throw IllegalStateException("插件 ${plugin.id} 装载失败", failure)
         }
-        logger("runtime plugin installed: ${plugin.id}", null)
+        if (host.isInstalled(plugin.id)) {
+            logger("runtime plugin installed: ${plugin.id}", null)
+        } else {
+            logger("runtime plugin waiting for services: ${plugin.id}", null)
+        }
         return plugin
     }
 

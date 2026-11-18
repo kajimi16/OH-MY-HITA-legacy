@@ -27,6 +27,10 @@ data class MarketPlugin(
     val apiAbi: String? = null,
     /** 插件要求的最低 Android API；null 表示不限制。 */
     val minSdk: Int? = null,
+    /** 依赖的服务名（`ServiceKey.name`）。 */
+    val requires: Set<String> = emptySet(),
+    /** 提供的服务名（`ServiceKey.name`）。 */
+    val provides: Set<String> = emptySet(),
     /** 市场展示元数据，均可缺省。 */
     val author: String? = null,
     val tags: List<String>? = null,

@@ -55,7 +55,7 @@ class BuiltinPluginManager(private val application: Application) {
             ?: error("插件类不可用：${entry.className}")
         PluginPurge.cancel(application, pluginId)
         PluginPrefs.setDisabled(application, pluginId, false)
-        host.install(plugin)
+        host.install(plugin, entry.descriptor())
         check(host.isInstalled(pluginId)) { "插件安装失败：$pluginId" }
         PluginComponents.setEnabled(application, pluginId, true)
     }
