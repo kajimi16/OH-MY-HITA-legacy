@@ -332,7 +332,9 @@ class HApplication : Application() {
         val composition = com.stupidtree.hitax.market.CompositionStore.read(this)
         val combined = com.google.gson.JsonObject().apply {
             add("plugins", gson.toJsonTree(pluginHost.diagnostics()))
-            if (!composition.isNullOrBlank()) addProperty("composition", composition)
+            if (!composition.isNullOrBlank()) {
+                add("composition", com.google.gson.JsonParser.parseString(composition))
+            }
         }.toString()
         java.io.File(dir, "diagnostics.json").writeText(combined)
         android.util.Log.i(TAG, "plugin diagnostics: $combined")

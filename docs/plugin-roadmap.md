@@ -154,7 +154,9 @@ flowchart LR
 - 新增 **CompositionReconcilerTest**：模拟“旧组合 A 切换到 B”，断言必选安装/启用成功后才停用 A 独有条目；
   required 失败时按对账前状态回滚，不留下新装/旧停的半成品。
 - `./gradlew :app:testDebugUnitTest --tests "*Composition*"` 退出码 0。
-- debug 包执行 `adb shell am broadcast -a com.stupidtree.hitax.DEBUG_DUMP_COMPOSITION`，logcat 中每条包含 `source=`、`desired=`、`actual=`；`filesDir/diagnostics/composition.json` 可解析。
+- debug 包执行显式广播：
+  `adb shell am broadcast -n io.github.kajimi16.ohmyhita/com.stupidtree.hitax.debug.PluginDiagnosticsReceiver -a com.stupidtree.hitax.DEBUG_DUMP_COMPOSITION`；
+  logcat 中每条包含 `source=`、`desired=`、`actual=`；`filesDir/diagnostics/composition.json` 可解析。
 - `./gradlew :kernel:test :api:test` 保持通过。
 
 ### 3.2 改造点 B：服务依赖声明、波次激活与显式 provider 冲突
@@ -363,7 +365,9 @@ fun interface Decision<T> {
 **验收方式**
 
 - `PluginHostTest` 新增：构造 installed/failed/waiting/conflict/degraded 五种状态，断言 `diagnostics()` 的字段与顺序稳定；JSON 序列化后能反序列化。
-- debug 包执行 `adb shell am broadcast -a com.stupidtree.hitax.DEBUG_DUMP_PLUGINS`，logcat 与 `filesDir/diagnostics/plugins.json` 均包含 `installed`、`failed`、`waiting`、`providers`、`conflicts`。
+- debug 包执行显式广播：
+  `adb shell am broadcast -n io.github.kajimi16.ohmyhita/com.stupidtree.hitax.debug.PluginDiagnosticsReceiver -a com.stupidtree.hitax.DEBUG_DUMP_PLUGINS`；
+  logcat 与 `filesDir/diagnostics/plugins.json` 均包含 `installed`、`failed`、`waiting`、`providers`、`conflicts`。
 - `./gradlew :app:verifyPluginBoundary` 退出码 0；故意在一个插件模块里加 `implementation project(':app')`，任务必须失败并指出模块。
 - `./gradlew :verifyMarketIndex` 退出码 0；把 `market/index.json` 的 sha256 改成非十六进制，任务必须失败。
 - `./gradlew :kernel:test :api:test` 退出码 0。

@@ -186,15 +186,25 @@ interface ThemeController { fun setNightMode(night: Boolean) }
 同一个 id 的 UI 与内置条目互不影响。调试包可以导出组合快照：
 
 ```bash
-adb shell am broadcast -a com.stupidtree.hitax.DEBUG_DUMP_COMPOSITION
+adb shell am broadcast \
+  -n io.github.kajimi16.ohmyhita/com.stupidtree.hitax.debug.PluginDiagnosticsReceiver \
+  -a com.stupidtree.hitax.DEBUG_DUMP_COMPOSITION
 ```
 
-`applyPreset` 会把最近一次的 desired/actual 快照写到 `filesDir/diagnostics/composition.txt`；
-`DEBUG_DUMP_PLUGINS` 同时把内核诊断与组合快照写入 `diagnostics.json`。
+`applyPreset` 会把最近一次的 desired/actual 快照写到 `filesDir/diagnostics/composition.json`；
+`DEBUG_DUMP_PLUGINS` 同时把内核诊断与组合快照写入 `diagnostics.json`：
+
+```bash
+adb shell am broadcast \
+  -n io.github.kajimi16.ohmyhita/com.stupidtree.hitax.debug.PluginDiagnosticsReceiver \
+  -a com.stupidtree.hitax.DEBUG_DUMP_PLUGINS
+```
 调试包可以设置/解除安全开关：
 
 ```bash
-adb shell am broadcast -a com.stupidtree.hitax.DEBUG_SET_KILL_SWITCH \
+adb shell am broadcast \
+  -n io.github.kajimi16.ohmyhita/com.stupidtree.hitax.debug.PluginDiagnosticsReceiver \
+  -a com.stupidtree.hitax.DEBUG_SET_KILL_SWITCH \
   --es kind ui --es id com.example.ui --ez enabled true
 ```
 

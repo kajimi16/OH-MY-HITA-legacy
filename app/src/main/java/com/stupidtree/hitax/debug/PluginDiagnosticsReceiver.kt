@@ -9,7 +9,12 @@ import com.stupidtree.hitax.market.CompositionKind
 import com.stupidtree.hitax.market.CompositionStore
 import com.stupidtree.hitax.market.CompositionTarget
 
-/** Debug-only：adb shell am broadcast -a com.stupidtree.hitax.DEBUG_DUMP_PLUGINS */
+/**
+ * Debug-only。
+ *
+ * Manifest receiver 在 Android 8+ 对隐式广播有限制，必须显式指定组件：
+ * `adb shell am broadcast -n io.github.kajimi16.ohmyhita/com.stupidtree.hitax.debug.PluginDiagnosticsReceiver -a com.stupidtree.hitax.DEBUG_DUMP_PLUGINS`
+ */
 class PluginDiagnosticsReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
