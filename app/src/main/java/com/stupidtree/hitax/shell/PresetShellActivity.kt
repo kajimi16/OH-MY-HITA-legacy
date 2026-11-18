@@ -367,6 +367,24 @@ private fun TimetablePage(service: TimetableService?) {
     }
     val events by eventsLive.observeAsState(emptyList())
 
+    if (timetable == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                androidx.compose.material3.Icon(
+                    painter = painterResource(R.drawable.ic_timeline),
+                    contentDescription = null,
+                    tint = Color(0xFF3390EC).copy(alpha = 0.35f),
+                    modifier = Modifier.size(96.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                Text("还没有课表", color = Color(0xFF808080), fontSize = 16.sp)
+                Spacer(Modifier.height(4.dp))
+                Text("请先在功能中心导入课表", color = Color(0xFF9CA3AF), fontSize = 12.sp)
+            }
+        }
+        return
+    }
+
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp)) {
             Text(
