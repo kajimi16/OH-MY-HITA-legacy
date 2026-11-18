@@ -218,7 +218,7 @@ fun AgentChatScreen(viewModel: AgentChatViewModel, timetableId: String?) {
             ChatAttachmentProcessor(
                 directory = File(context.cacheDir, "chat-attachments").apply { mkdirs() },
                 parser = DocumentTextParser(),
-                encodeMedia = { "" },
+                encodeMedia = { android.util.Base64.encodeToString(it, android.util.Base64.NO_WRAP) },
             )
         }
         val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->

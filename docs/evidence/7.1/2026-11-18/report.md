@@ -102,3 +102,11 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 - 无 Key 时助手：`出错了：未配置智谱 API Key`
 
 说明选择/编码/请求链路已接通；实际视觉理解仍未验收，需在 AI 设置填写智谱 Key。
+
+
+## 媒体 Key 测试（2026-11-19）
+
+- 在应用 AI 设置写入测试 Key（未写入仓库/日志）。
+- 首次请求 400：定位为 `encodeMedia = { "" }`，已改为真实 Base64。
+- 修复后请求返回 **HTTP 429**（限流/额度），等待冷却后重试仍是 429。
+- 因此只证明了 Key 生效、请求合法，未取得实际图片理解回复。
