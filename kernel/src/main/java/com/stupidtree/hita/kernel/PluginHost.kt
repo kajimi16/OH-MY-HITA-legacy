@@ -1,10 +1,13 @@
 package com.stupidtree.hita.kernel
 
+import com.stupidtree.hita.api.Decision
 import com.stupidtree.hita.api.HITA_API_VERSION
+import com.stupidtree.hita.api.HookKey
 import com.stupidtree.hita.api.NavEntry
 import com.stupidtree.hita.api.NavRegistry
 import com.stupidtree.hita.api.Plugin
 import com.stupidtree.hita.api.PluginContext
+import com.stupidtree.hita.api.PluginHooks
 import com.stupidtree.hita.api.SearchTab
 import com.stupidtree.hita.api.SearchTabRegistry
 import com.stupidtree.hita.api.TabContribution
@@ -48,6 +51,7 @@ class PluginHost(
     private val conflicts = ArrayList<PluginConflict>()
     private val globalServices = LinkedHashSet<String>()
     private val availableServices = LinkedHashSet<String>()
+    private val hookListeners = LinkedHashMap<String, MutableList<Decision<*>>>()
 
     private data class PendingInstall(
         val plugin: Plugin,
@@ -260,6 +264,33 @@ class PluginHost(
         services[key.name] as? T
             ?: throw IllegalStateException("service not provided: ${key.name}")
 
+    private fun <T> registerHook(key: HookKey<T>, listener: Decision<T>): AutoCloseable {
+        val listeners = hookListeners.getOrPut(key.name) { mutableListOf() }
+        listeners += listener
+        return AutoCloseable {
+            listeners.remove(listener)
+            if (listeners.isEmpty()) hookListeners.remove(key.name)
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T> runHook(key: HookKey<T>, value: T): T {
+        val listeners = hookListeners[key.name]?.toList().orEmpty()
+            .map { it as Decision<T> }
+        return invokeHook(listeners, 0, value)
+    }
+
+    private fun <T> invokeHook(
+        listeners: List<Decision<T>>,
+        index: Int,
+        value: T,
+    ): T {
+        if (index >= listeners.size) return value
+        return listeners[index].handle(value) { next ->
+            invokeHook(listeners, index + 1, next)
+        }
+    }
+
     fun installedIds(): List<String> = installedPlugins.keys.toList()
 
     fun failures(): Map<String, Throwable> = failures.toMap()
@@ -337,6 +368,17 @@ class PluginHost(
 
         override fun filesDir(): File =
             File(pluginsDir, pluginId).apply { mkdirs() }
+
+        override val hooks: PluginHooks = object : PluginHooks {
+            override fun <T> register(key: HookKey<T>, listener: Decision<T>): AutoCloseable {
+                val handle = this@PluginHost.registerHook(key, listener)
+                undoStack += { handle.close() }
+                return handle
+            }
+
+            override fun <T> run(key: HookKey<T>, value: T): T =
+                this@PluginHost.runHook(key, value)
+        }
 
         override val nav: NavRegistry = object : NavRegistry {
             override fun register(entry: NavEntry) {

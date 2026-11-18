@@ -10,6 +10,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.stupidtree.hita.api.HookKeys
+import com.stupidtree.hita.api.ReminderNotification
+import com.stupidtree.hitax.HApplication
 import com.stupidtree.hitax.R
 import com.stupidtree.hitax.ui.main.MainActivity
 
@@ -40,16 +43,27 @@ class ReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val payload = (context.applicationContext as? HApplication)?.pluginHost
+            ?.runHook(
+                HookKeys.REMINDER_NOTIFY,
+                ReminderNotification(reminder.title, reminder.text),
+            )
+            ?: ReminderNotification(reminder.title, reminder.text)
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_nav_today)
-            .setContentTitle(reminder.title)
-            .setContentText(reminder.text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(reminder.text))
+            .setContentTitle(payload.title)
+            .setContentText(payload.text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(payload.text))
             .setAutoCancel(true)
             .setContentIntent(contentIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(
+                if (payload.priority == Int.MIN_VALUE) NotificationCompat.PRIORITY_HIGH
+                else payload.priority,
+            )
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .build()
+
+        val notification = builder.build()
 
         runCatching {
             NotificationManagerCompat.from(context).notify(reminder.id.hashCode(), notification)

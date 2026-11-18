@@ -42,23 +42,15 @@ object ShellChatService {
                 val answer = parsed.thought.ifBlank { content }.trim()
                 return@withContext LlmChatResult.Success(answer, observations.joinToString("\n"))
             }
-            val tool = toolRegistry.get(parsed.action)
-            val observation = if (tool == null) {
-                "未知工具：${parsed.action}"
-            } else {
-                runCatching {
-                    tool.execute(
-                        ReActToolInput(
-                            actionInput = parsed.actionInput,
-                            userMessage = userMessage,
-                            application = application,
-                            timetableId = timetableId,
-                            onTrace = onTrace,
-                        ),
-                    )
-                }.getOrElse { "工具执行失败：${it.message}" }.orEmpty()
-            }
-            observations += "【${parsed.action}】\n${observation.take(1800)}"
+            val toolInput = ReActToolInput(
+                actionInput = parsed.actionInput,
+                userMessage = userMessage,
+                application = application,
+                timetableId = timetableId,
+                onTrace = onTrace,
+            )
+            val observation = toolRegistry.execute(parsed.action, toolInput, onTrace).text
+            observations += "【${parsed.action}】\n$observation"
             onTrace(AgentTraceEvent(stage = "observation", message = "观察：${observation.take(80)}", payload = observation.take(500)))
             messages += ChatMessage(role = "assistant", content = content)
             messages += ChatMessage(role = "user", content = "观察结果：$observation")
@@ -77,21 +69,8 @@ object ShellChatService {
         append("格式：\n思考：...\n动作：工具名\n动作输入：<JSON>\n")
         append("或者：\n答案：...\n\n")
         append("工具目录：\n")
-        append("- get_timetable：动作输入 {\"day_offset\":0}，0=今天，1=明天，-1=昨天。\n")
-        append("- add_activity：动作输入 {\"name\":\"活动名\",\"day_offset\":0,\"start_time\":\"15:00\",\"end_time\":\"16:00\",\"place\":\"地点\"}。\n")
-        append("- search_empty_classroom：动作输入 {\"week\":1,\"building\":\"\",\"day\":1}；day 可省略。\n")
-        append("- search_teacher：动作输入 {\"name\":\"教师姓名\"}。\n")
-        append("- search_timetable：动作输入 {\"query\":\"课程名/教师/地点关键词\"}。\n")
-        append("- search_course：动作输入 {\"query\":\"课程关键词\"}。\n")
-        append("- get_course_detail：动作输入 {\"course_code\":\"课程代码\",\"start\":0,\"end\":4000,\"query\":\"关注点\"}；start/end/query 可省略。\n")
-        append("- search_external_resource：动作输入 {\"query\":\"课程资料关键词\"}。\n")
-        append("- web_search：动作输入 {\"param\":\"搜索词\"}。\n")
-        append("- rag_search：动作输入 {\"query\":\"问题\"}。\n")
-        append("- crawl_page：动作输入 {\"url\":\"https://...\",\"start\":0,\"end\":5000}；start/end 可省略。\n")
-        append("- crawl_site：动作输入 {\"url\":\"https://...\",\"max_pages\":10}；max_pages 可省略。\n")
-        append("- crawl_status：动作输入 {\"task_id\":\"任务ID\"}。\n")
-        append("- submit_review：动作输入 {\"course_code\":\"...\",\"content\":\"...\",\"review_type\":\"lecturer|course|course_teacher|section|new_course\",\"lecturer_name\":\"...\",\"course_name\":\"...\",\"teacher_name\":\"...\",\"title\":\"...\",\"author_name\":\"...\"}；仅提交评价时使用。\n\n")
-        append("动作输入必须是合法 JSON，不要输出 Markdown 代码块。")
+        append(toolRegistry.catalog())
+        append("\n\n动作输入必须是合法 JSON，不要输出 Markdown 代码块。")
         append("不要编造课表、空教室或教师数据；不知道就说明。")
     }
 
