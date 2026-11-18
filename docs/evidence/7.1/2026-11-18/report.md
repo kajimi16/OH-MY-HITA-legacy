@@ -117,3 +117,10 @@ Crop: top 130 px / bottom 310 px, tolerance 10. The bottom crop removes the floa
 - 图片 `wp-test.png`：模型返回“纯蓝色背景图，无其他图案/文字/图形”；截图 `docs/evidence/7.1/2026-11-19/ours/media_image_success.png`。
 - 视频 `attach_test.mp4`：连续返回 HTTP 429；视频理解未验收。
 - 结论：图片链路通过；视频请求合法但被限流。
+
+
+## B2/C2 验收口径（2026-11-19）
+
+- B2 接受仅图片；视频 provider-429 为已知缺口。
+- C2 接受当前状态矩阵；资讯空态、更多登录态、大量文本长会话未覆盖。
+- 不以“全量通过”表述。
