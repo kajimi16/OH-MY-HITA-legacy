@@ -436,8 +436,8 @@ fun interface Decision<T> {
 
 - **M0 拒绝与诊断**：完成。加载前兼容 gate、ABI 指纹、精确豁免、内核诊断快照、debug dump 均已在生产路径。
 - **M1 依赖与激活**：完成。descriptor 的 `requires` 驱动 waiting/波次激活，provider 冲突可见；`origin` 标记 builtin/dex，工具白名单不再按 id 猜测来源。
-- **M2 组合对账**：大部分完成。resolver/reconciler/dump、kind-scoped 安全开关、必选失败回滚、
-  `CompositionMaterializer`（DEX/UI prepare 与 attach 分离）已经落地；只剩“启动时按 active preset 重放”。
+- **M2 组合对账**：完成。resolver/reconciler/dump、kind-scoped 安全开关、必选失败回滚、
+  `CompositionMaterializer`（DEX/UI prepare 与 attach 分离）、启动时按 active preset 重放均已落地。
 - **M3a 宿主工具契约**：完成。schema 驱动的 catalog/validate/timeout/truncate、output schema 元数据、
   retrySafe（含一次安全重试）、presentCall/presentResult、资源卡片回传与渲染、生产 guard/脱敏、
   单次 JSON 解析 + 14 个工具参数对象化已接入。不再保留第二套工具注册表。
@@ -446,8 +446,8 @@ fun interface Decision<T> {
 - **M4 决策 hook**：完成。两个试点已接线；hook 异常回退原值并进入诊断，提醒 payload 重新过长度/优先级收敛，
   同步 hook 禁止重定向 key/ids。
 
-剩余高风险项：启动时按 active preset 重放（A2）、release 诊断导出（F1）、
-UI 安装的完整原子回滚（已补旧 APK 备份/恢复但仍非跨进程事务）。
+剩余高风险项：release 诊断导出（F1）、UI 安装的完整原子回滚
+（已补旧 APK 备份/恢复但仍非跨进程事务）。
 
 可执行任务拆分、Dumate 交接格式与验收命令见
 [`2026-11-18-plugin-remaining-work.md`](plans/2026-11-18-plugin-remaining-work.md)。
