@@ -25,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Link
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.clickable
@@ -503,9 +506,33 @@ private fun MorePage(service: TimetableService?) {
         }
     }
     Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())
-        .padding(horizontal = 16.dp, vertical = 20.dp)) {
-        Text("更多", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(28.dp))
+        .padding(horizontal = 16.dp, vertical = 14.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("更多", fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            val isNight = (context.resources.configuration.uiMode and
+                android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val theme = (context.applicationContext as HApplication).pluginHost
+                .service(com.stupidtree.hita.api.ThemeController.KEY)
+            IconButton(onClick = { theme?.setNightMode(!isNight) }) {
+                Icon(
+                    Icons.Default.DarkMode,
+                    contentDescription = "切换深浅色",
+                    tint = Color(0xFF6B7280),
+                )
+            }
+            IconButton(onClick = {
+                context.startActivity(
+                    android.content.Intent(
+                        context,
+                        com.stupidtree.hitax.market.PluginMarketActivity::class.java,
+                    )
+                )
+            }) {
+                Icon(Icons.Default.Menu, contentDescription = "插件市场", tint = Color(0xFF6B7280))
+            }
+        }
+        Spacer(Modifier.height(22.dp))
         Card(
             shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
