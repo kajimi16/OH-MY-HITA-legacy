@@ -48,6 +48,8 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     com.stupidtree.style.base.TimetablePageController,
     com.stupidtree.style.base.TimelinePageController {
 
+    private var redirectedToShell = false
+
     /**
      * 插件贡献的抽屉项。id 由宿主按顺序分配，避免菜单 xml 里写死。
      */
@@ -109,17 +111,7 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     private var drawerHeader: ViewGroup? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) {
-            val shell = com.stupidtree.hitax.market.PresetStateStore.activeShell(this)
-            if (!shell.isNullOrBlank()) {
-                startActivity(
-                    Intent(this, com.stupidtree.hitax.shell.PresetShellActivity::class.java)
-                        .putExtra(com.stupidtree.hitax.shell.PresetShellActivity.EXTRA_SHELL_ID, shell)
-                )
-                finish()
-                return
-            }
-        }
+        if (savedInstanceState == null && redirectToActiveShell()) return
         if (com.stupidtree.hitax.market.PresetStateStore.activeId(this) == "hita-l-1.5.3") {
             window.navigationBarColor = Color.BLACK
             androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
@@ -128,6 +120,30 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
         setSupportActionBar(binding.toolbar)
     }
 
+
+    override fun onResume() {
+        super.onResume()
+        redirectToActiveShell()
+    }
+
+    /**
+     * 从市场返回时也要立即切换壳；只依赖 onCreate 会让用户停在旧界面上，
+     * 直到下一次冷启动才进入 Shell。
+     */
+    private fun redirectToActiveShell(): Boolean {
+        if (redirectedToShell || isFinishing || intent.getBooleanExtra(EXTRA_SKIP_SHELL_REDIRECT, false)) {
+            return false
+        }
+        val shell = com.stupidtree.hitax.market.PresetStateStore.activeShell(this)
+        if (shell.isNullOrBlank()) return false
+        redirectedToShell = true
+        startActivity(
+            Intent(this, com.stupidtree.hitax.shell.PresetShellActivity::class.java)
+                .putExtra(com.stupidtree.hitax.shell.PresetShellActivity.EXTRA_SHELL_ID, shell)
+        )
+        finish()
+        return true
+    }
 
     private fun setUpDrawer() {
         binding.drawerNavigationview.itemIconTintList = null
@@ -778,6 +794,9 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
     }
 
     companion object {
+        /** Shell 内打开“应用设置”时使用，避免立即被 onResume 重新路由回 Shell。 */
+        const val EXTRA_SKIP_SHELL_REDIRECT = "skipShellRedirect"
+
         /** 插件菜单项 id 从这里开始分配，避开 xml 里的资源 id 区间。 */
         private const val PLUGIN_MENU_ID_BASE = 0x0F000000
         private const val KEY_PRESET_PROMPT_SEEN = "preset_prompt_seen"

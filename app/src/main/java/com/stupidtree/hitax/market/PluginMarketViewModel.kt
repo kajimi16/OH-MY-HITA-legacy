@@ -648,7 +648,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 val committed = PresetStateStore.saveUi(
                     ctx(),
                     preset.id,
-                    preset.shell,
+                    PresetStateStore.shellForPreset(preset.id, preset.shell),
                     preset.tabs,
                 )
                 if (!committed) {

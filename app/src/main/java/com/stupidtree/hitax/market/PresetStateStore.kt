@@ -21,8 +21,23 @@ object PresetStateStore {
     fun activeId(context: Context): String? =
         prefs(context).getString(KEY_ACTIVE, null)
 
-    fun activeShell(context: Context): String? =
-        prefs(context).getString(KEY_SHELL, null)
+    fun activeShell(context: Context): String? {
+        val stored = prefs(context).getString(KEY_SHELL, null)
+        if (!stored.isNullOrBlank()) return stored
+        return shellForPreset(activeId(context), null)
+    }
+
+    /**
+     * 线上 HITA_Android 预设暂时没有声明 shell；由宿主提供稳定映射，
+     * 避免“整合包已切换但仍走 MainActivity”的假切换。
+     */
+    fun shellForPreset(id: String?, declared: String?): String? {
+        if (!declared.isNullOrBlank()) return declared
+        return when (id) {
+            "hita-android-3.1.2" -> "hita-android-3.1.2"
+            else -> null
+        }
+    }
 
     fun layoutPresetId(context: Context): String? =
         prefs(context).getString(KEY_LAYOUT_PRESET, null)

@@ -139,6 +139,9 @@
         <activity android:name=".ui.about.ActivityAbout" />
         <activity android:name=".ui.news.lecture.ActivityLecture" />
         <activity android:name=".ui.news.NewsDetailActivity" />
+        <activity
+            android:name=".shell.news.ShellPortalLoginActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

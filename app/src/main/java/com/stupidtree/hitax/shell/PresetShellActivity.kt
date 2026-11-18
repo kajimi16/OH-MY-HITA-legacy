@@ -66,6 +66,7 @@ import com.stupidtree.hitax.shell.homework.HomeworkScreen
 import com.stupidtree.hitax.agent.AgentChatViewModel
 import com.stupidtree.hitax.shell.agent.AgentChatScreen
 import com.stupidtree.hitax.shell.homework.HomeworkViewModel
+import com.stupidtree.hitax.shell.news.ShellNewsPage
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -77,6 +78,23 @@ import java.util.Locale
 class PresetShellActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_SHELL_ID = "shellId"
+    }
+
+    private var redirectedBack = false
+
+    override fun onResume() {
+        super.onResume()
+        if (redirectedBack || isFinishing) return
+        val shell = com.stupidtree.hitax.market.PresetStateStore.activeShell(this)
+        val current = intent.getStringExtra(EXTRA_SHELL_ID)
+        if (shell.isNullOrBlank() || (current != null && shell != current)) {
+            redirectedBack = true
+            startActivity(
+                android.content.Intent(this, com.stupidtree.hitax.ui.main.MainActivity::class.java)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+            finish()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,6 +136,7 @@ private fun HitaAndroidShell(
         ShellTab("今日", "●"),
         ShellTab("时间表", "▦"),
         ShellTab("助手", "✦"),
+        ShellTab("资讯", "▤"),
         ShellTab("更多", "⋯"),
     ) }
     var selected by remember { mutableIntStateOf(1) }
@@ -128,8 +147,9 @@ private fun HitaAndroidShell(
                 1 -> TodayPage(service)
                 2 -> TimetablePage(service)
                 3 -> AgentChatScreen(agentViewModel, remember(service) { runCatching { service?.getRecentTimetable()?.value?.id }.getOrNull() })
-                4 -> MorePage(service)
-                else -> StubPage(tabs[selected].title)
+                4 -> ShellNewsPage()
+                5 -> MorePage(service)
+                else -> Unit
             }
         }
         Box(Modifier.fillMaxWidth().padding(bottom = 4.dp), contentAlignment = Alignment.BottomCenter) {
@@ -447,8 +467,24 @@ private fun MorePage(service: TimetableService?) {
             MoreRow("连接深圳 Web 教务", "培养方案、考试等需要 Web 会话", Icons.Default.Link) {
                 open("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
             }
+            MoreRow("插件市场", "切换整合包、安装或停用插件", Icons.Default.Settings) {
+                context.startActivity(
+                    android.content.Intent(
+                        context,
+                        com.stupidtree.hitax.market.PluginMarketActivity::class.java,
+                    )
+                )
+            }
             MoreRow("应用设置", "外观、提醒与数据", Icons.Default.Settings) {
-                open("com.stupidtree.hitax.ui.main.MainActivity")
+                context.startActivity(
+                    android.content.Intent(
+                        context,
+                        com.stupidtree.hitax.ui.main.MainActivity::class.java,
+                    ).putExtra(
+                        com.stupidtree.hitax.ui.main.MainActivity.EXTRA_SKIP_SHELL_REDIRECT,
+                        true,
+                    )
+                )
             }
         }
     }
@@ -516,12 +552,5 @@ private fun MoreCard(title: String, subtitle: String, onClick: () -> Unit) {
             Text(title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
             Text(subtitle, color = Color(0xFF6B7280), fontSize = 12.sp)
         }
-    }
-}
-
-@Composable
-private fun StubPage(title: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("$title 页面正在移植", color = Color(0xFF6B7280))
     }
 }

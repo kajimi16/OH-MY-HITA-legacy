@@ -6,7 +6,7 @@
 
 - 分支：`feat/hita-android-shell`
 - 基线：已合并 `origin/master` / `v0.6.9`；已发布 `0.7.0`
-- HITA_Android Shell 为预览版，未接入线上预设
+- HITA_Android Shell 已由预设映射激活，固定 6 tab；视觉仍是预览版
 
 ## HITA-L 1.5.3
 
@@ -41,8 +41,10 @@
 Shell 入口：
 
 - `app/.../shell/PresetShellActivity.kt`
-- `MainActivity` 检测 `PresetStateStore.activeShell()` 后跳转
-- 未写入线上 `hita-android-3.1.2` 预设
+- `MainActivity` 在 onCreate/onResume 检测 `activeShell` 后跳转，市场切换后立即生效
+- 6 tab：待办 / 今日 / 时间表 / 助手 / 资讯 / 更多
+- “资讯”已接 HOA 资讯与校园通知；页面视觉仍在 M4 继续对齐
+- `hita-android-3.1.2` 的 shell 由宿主稳定映射，不依赖线上索引先改字段
 
 ## Agent 已移植
 
@@ -83,9 +85,9 @@ Shell 入口：
 
 ## 下一步顺序
 
-1. 补助手附件上传与资源卡片交互
-2. 降低五页截图残差，重新验收
-3. 才考虑把 `hita-android-3.1.2` 切到 Shell
+1. 按 M4 逐页对齐 6 个 Shell 页面（当前占位文案已移除）
+2. 补助手附件上传与资源卡片交互
+3. 重新采集六页截图并验收
 
 ## 运行时证据
 
