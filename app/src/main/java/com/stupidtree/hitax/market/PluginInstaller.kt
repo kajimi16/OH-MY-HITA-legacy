@@ -58,6 +58,7 @@ class PluginInstaller(
                     entry.descriptor(),
                     BuildConfig.API_ABI.takeIf { it.isNotBlank() },
                     entry.isExempt(),
+                    android.os.Build.VERSION.SDK_INT,
                 )
             saveDisabled(disabledIds() - id)
         } else {
@@ -124,6 +125,7 @@ class PluginInstaller(
                     entry.descriptor(),
                     BuildConfig.API_ABI.takeIf { it.isNotBlank() },
                     entry.isExempt(),
+                    android.os.Build.VERSION.SDK_INT,
                 )
             if (!wasEnabled) host.uninstall(entry.id)
 
@@ -152,6 +154,7 @@ class PluginInstaller(
                             oldEntry.descriptor(),
                             BuildConfig.API_ABI.takeIf { it.isNotBlank() },
                             oldEntry.isExempt(),
+                            android.os.Build.VERSION.SDK_INT,
                         )
                     }.onFailure { log("rollback failed: ${entry.id}", it) }
                 }
@@ -195,6 +198,7 @@ class PluginInstaller(
                         entry.descriptor(),
                         BuildConfig.API_ABI.takeIf { it.isNotBlank() },
                         entry.isExempt(),
+                        android.os.Build.VERSION.SDK_INT,
                     )
             }.onFailure { log("restore failed: ${entry.id}", it) }
         }

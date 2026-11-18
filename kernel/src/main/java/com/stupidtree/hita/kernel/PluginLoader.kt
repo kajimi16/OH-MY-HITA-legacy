@@ -34,9 +34,15 @@ class PluginLoader(
         descriptor: PluginDescriptor? = null,
         hostAbi: String? = null,
         exempt: Boolean = false,
+        sdkInt: Int? = null,
     ): Plugin {
         if (meta != null) {
-            when (val result = PluginCompatibility.check(meta, hostAbi = hostAbi, exempt = exempt)) {
+            when (val result = PluginCompatibility.check(
+                meta,
+                hostAbi = hostAbi,
+                sdkInt = sdkInt,
+                exempt = exempt,
+            )) {
                 is CompatibilityResult.Rejected -> {
                     val error = PluginRejectedException(meta.id, result.reasons)
                     host.reject(meta.id, error, PluginFailurePhase.COMPATIBILITY)
