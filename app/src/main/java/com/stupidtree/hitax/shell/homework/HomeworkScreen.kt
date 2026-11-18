@@ -139,9 +139,18 @@ internal fun HomeworkScreen(viewModel: HomeworkViewModel) {
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().imePadding(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 132.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 132.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                item(key = "title") {
+                    Text(
+                        "待办",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                    Spacer(Modifier.height(14.dp))
+                }
                 item(key = "date") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -190,8 +199,10 @@ internal fun HomeworkScreen(viewModel: HomeworkViewModel) {
                                         contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                                     ) {
                                         Column(Modifier.padding(horizontal = 10.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text(day.format(DateTimeFormatter.ofPattern("EEEEE", Locale.SIMPLIFIED_CHINESE)),
-                                                style = MaterialTheme.typography.labelSmall)
+                                            Text(
+                                                listOf("一", "二", "三", "四", "五", "六", "日")[day.dayOfWeek.value - 1],
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
                                             Text(day.dayOfMonth.toString(), style = MaterialTheme.typography.titleMedium)
                                             Text(if (count > 0) count.toString() else "·", style = MaterialTheme.typography.labelSmall)
                                         }
