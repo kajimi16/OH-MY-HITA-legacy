@@ -448,50 +448,54 @@ private fun TimetablePage(service: TimetableService?) {
                 }
             }
         }
-        Row(Modifier.fillMaxSize().padding(top = 4.dp)) {
+        Spacer(Modifier.height(20.dp))
+        val hourHeight = 56.dp
+        val todayIndex = (dayOfWeek(System.currentTimeMillis()) - 1).coerceIn(0, 6)
+        Row(Modifier.fillMaxWidth().height(hourHeight * 12)) {
             Column(Modifier.width(48.dp)) {
                 repeat(12) { index ->
-                    Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
-                        Text("第${index + 1}节", color = Color(0xFF9CA3AF), fontSize = 10.sp)
+                    Box(Modifier.fillMaxWidth().height(hourHeight), contentAlignment = Alignment.TopStart) {
+                        Text("${index + 8}:00", color = Color(0xFF9CA3AF), fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
                     }
                 }
             }
-            repeat(7) { dayIndex ->
-                Box(
-                    Modifier.weight(1f).height((12 * 48).dp).padding(horizontal = 1.dp),
-                ) {
-                    repeat(12) { period ->
-                        Box(Modifier.fillMaxWidth().height(48.dp).offset(y = (period * 48).dp)) {
-                            Box(
-                                Modifier.fillMaxWidth().height(1.dp)
-                                    .background(Color(0x11000000)),
-                            )
-                        }
+            Box(Modifier.weight(1f).fillMaxHeight()) {
+                Row(Modifier.fillMaxSize()) {
+                    repeat(7) { dayIndex ->
+                        Box(
+                            Modifier.weight(1f).fillMaxHeight()
+                                .background(if (dayIndex == todayIndex) Color(0x0D000000) else Color.Transparent),
+                        )
                     }
-                    events.filter { dayOfWeek(it.from.time) == dayIndex + 1 }.forEach { item ->
-                        val top = ((item.fromNumber - 1).coerceAtLeast(0)) * 48
-                        val span = (item.lastNumber - item.fromNumber + 1).coerceAtLeast(1)
-                        Card(
-                            shape = RoundedCornerShape(8.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(item.color).copy(alpha = 0.9f),
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(1.dp)
-                                .offset(y = top.dp)
-                                .height((48 * span - 2).dp),
-                        ) {
-                            Column(Modifier.padding(4.dp)) {
-                                Text(
-                                    item.name,
-                                    color = Color.White,
-                                    fontSize = 11.sp,
-                                    maxLines = 4,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                item.place?.takeIf { it.isNotBlank() }?.let {
-                                    Text(it, color = Color.White.copy(alpha = .8f), fontSize = 9.sp)
+                }
+                repeat(12) { hour ->
+                    Box(
+                        Modifier.fillMaxWidth().offset(y = (hourHeight * hour)).height(1.dp)
+                            .background(Color(0x11000000)),
+                    )
+                }
+                Row(Modifier.fillMaxSize()) {
+                    repeat(7) { dayIndex ->
+                        Box(Modifier.weight(1f).fillMaxHeight()) {
+                            events.filter { dayOfWeek(it.from.time) == dayIndex + 1 }.forEach { item ->
+                                val fromMinute = minuteOfDay(item.from.time)
+                                val toMinute = minuteOfDay(item.to.time)
+                                val top = ((fromMinute - 8 * 60).coerceAtLeast(0) / 60f) * 56f
+                                val height = ((toMinute - fromMinute).coerceAtLeast(30) / 60f) * 56f
+                                Card(
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (item.color != 0) Color(item.color) else Color(0xFFC24C8C),
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
+                                        .offset(y = top.dp).height(height.dp),
+                                ) {
+                                    Column(Modifier.padding(4.dp)) {
+                                        Text(item.name, color = Color.White, fontSize = 11.sp, maxLines = 5, overflow = TextOverflow.Ellipsis)
+                                        item.place?.takeIf { it.isNotBlank() }?.let {
+                                            Text(it, color = Color.White.copy(alpha = .8f), fontSize = 9.sp)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -500,6 +504,12 @@ private fun TimetablePage(service: TimetableService?) {
             }
         }
     }
+}
+
+private fun minuteOfDay(time: Long): Int {
+    val c = java.util.Calendar.getInstance()
+    c.timeInMillis = time
+    return c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
 }
 
 private fun dayOfWeek(time: Long): Int {
