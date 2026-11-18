@@ -125,10 +125,11 @@ flowchart LR
    - 输出缺口：缺 artifact、版本不符、未受信任、索引缺失；这些不是“失败”，而是 plan 的字段。
 2. **CompositionMaterializer**：只为缺口准备 artifact。复用 `PluginInstaller.install()` 已有的 staging/backup/sha256 逻辑，但拆成“下载并校验到 staging”和“原子替换落盘”两段；在全部 required artifact 就绪之前，不触碰运行中的插件。
 3. **CompositionReconciler**：读取 `PluginInstaller.installed()`、`UiPluginManager.installed()`、`BuiltinPluginManager.rows()`，与 plan 做 diff：
-   - 先停用 plan 中不存在的 UI / 内置条目（避免界面闪烁）；
-   - 再附加/安装 plan 中缺失且 artifact 已就绪的条目；
-   - 最后按 plan 启用，返回 `ReconcileReport(installed, enabled, disabled, skipped, failures)`。
-   - 任一步失败只影响该条目；report 写回 UI，不改变 plan。
+   - 必选条目先安装/启用；只有全部必选步骤成功后才停用旧组合独有条目。
+     这样在 materializer 尚未落地时，失败不会先拆掉当前可用组合；UI 闪烁让位于可回滚性。
+   - 停用失败视为激活失败，并按对账前快照回滚已完成的安装/启用。
+   - 返回 `ReconcileReport(installed, enabled, disabled, skipped, rolledBack, failures, optionalFailures)`；
+     report 写回 UI，不改变 plan。
 4. **CompositionStore**：只持久化“意图”（active preset、用户覆盖、kill switch），实际安装状态继续由三个 manager 拥有；二者通过 resolver 合并。
 
 新增 `dump()`：输出每个条目的 desired/actual、source、artifact 状态、失败原因。debug 包用广播触发，写入 logcat 与 `filesDir/diagnostics/composition.json`。
@@ -150,7 +151,8 @@ flowchart LR
 **验收方式**
 
 - 新增 JVM 测试 **CompositionResolverTest**：同一输入多次 resolve 结果一致；USER 覆盖 PRESET；SAFETY 覆盖 USER；required 缺失时 plan 不进入 reconcile；旧 preset 的 golden 测试与当前 `applyPreset` 的启用集合一致。
-- 新增 **CompositionReconcilerTest**：模拟“旧组合 A 切换到 B”，断言先停用 A 独有条目、再附加 B、最后启用；materialize 失败时实际状态不变。
+- 新增 **CompositionReconcilerTest**：模拟“旧组合 A 切换到 B”，断言必选安装/启用成功后才停用 A 独有条目；
+  required 失败时按对账前状态回滚，不留下新装/旧停的半成品。
 - `./gradlew :app:testDebugUnitTest --tests "*Composition*"` 退出码 0。
 - debug 包执行 `adb shell am broadcast -a com.stupidtree.hitax.DEBUG_DUMP_COMPOSITION`，logcat 中每条包含 `source=`、`desired=`、`actual=`；`filesDir/diagnostics/composition.json` 可解析。
 - `./gradlew :kernel:test :api:test` 保持通过。
