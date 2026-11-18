@@ -45,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -52,6 +53,8 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.livedata.observeAsState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -223,15 +226,16 @@ private fun HitaAndroidShell(
 @Composable
 private fun TodayPage(service: TimetableService?) {
     val dateText = remember { SimpleDateFormat("M月d日 EEE", Locale.CHINA).format(Date()) }
-    val events = remember(service) {
-        runCatching { service?.getTodayEventsSync().orEmpty() }.getOrDefault(emptyList())
+    var events by remember(service) {
+        mutableStateOf<List<com.stupidtree.hitax.data.model.timetable.EventItem>>(emptyList())
     }
-    val currentWeek = remember(service) {
-        runCatching {
-            service?.getRecentTimetable()?.value?.let { service.getCurrentWeekOfTimetable(it.code)?.value }
-        }.getOrNull()
+    LaunchedEffect(service) {
+        events = withContext(Dispatchers.IO) {
+            runCatching { service?.getTodayEventsSync().orEmpty() }.getOrDefault(emptyList())
+        }
     }
-    Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 20.dp)) {
+    val finished = events.isNotEmpty() && events.all { it.to.time <= System.currentTimeMillis() }
+    Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 20.4.dp)) {
         Text(
             dateText,
             color = Color(0xFF111827),
@@ -242,7 +246,7 @@ private fun TodayPage(service: TimetableService?) {
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0C5C91)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 14.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(
@@ -257,20 +261,26 @@ private fun TodayPage(service: TimetableService?) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        if (events.isEmpty()) "今日空闲" else "今日课程",
+                        when {
+                            events.isEmpty() -> "今日空闲"
+                            finished -> "全部结束"
+                            else -> "今日课程"
+                        },
                         color = Color.White,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Black,
                         modifier = Modifier.weight(1f),
                     )
-                    if (events.isEmpty()) {
-                        Text(
-                            "享受当下！",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+                    Text(
+                        when {
+                            events.isEmpty() -> "享受当下！"
+                            finished -> "享受生活吧！"
+                            else -> "继续加油！"
+                        },
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
                 }
                 Box(
                     Modifier.fillMaxWidth().height(110.dp),
@@ -283,7 +293,7 @@ private fun TodayPage(service: TimetableService?) {
                         contentAlignment = Alignment.Center,
                     ) {
                         androidx.compose.foundation.Image(
-                            painter = painterResource(R.drawable.ic_timeline_head_free),
+                            painter = painterResource(if (finished) R.drawable.ic_finish else R.drawable.ic_timeline_head_free),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -295,12 +305,12 @@ private fun TodayPage(service: TimetableService?) {
                     tint = Color.White,
                     modifier = Modifier.align(Alignment.End).padding(end = 16.dp).size(44.dp),
                 )
-                if (events.isNotEmpty()) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-                        events.sortedBy { it.from.time }.forEach { event ->
-                            EventRow(event)
-                        }
-                    }
+            }
+        }
+        if (events.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 20.dp)) {
+                events.sortedBy { it.from.time }.forEach { event ->
+                    TodayEventRow(event)
                 }
             }
         }
@@ -326,25 +336,28 @@ private fun TodayPage(service: TimetableService?) {
 }
 
 @Composable
-private fun EventRow(event: EventItem) {
+private fun TodayEventRow(event: EventItem) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        Modifier.fillMaxWidth().heightIn(min = 64.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            event.from.toString().takeLast(8).take(5),
-            color = Color(0xFF2563EB),
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(end = 12.dp),
-        )
-        Column(Modifier.weight(1f)) {
-            Text(event.name, fontWeight = FontWeight.Medium)
-            Text(
-                listOfNotNull(event.place?.takeIf { it.isNotBlank() }, event.teacher?.takeIf { it.isNotBlank() })
-                    .joinToString(" · "),
-                color = Color(0xFF6B7280),
-                style = MaterialTheme.typography.bodySmall,
+        Box(Modifier.width(32.dp).height(64.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFE5E7EB)))
+            androidx.compose.material3.Icon(
+                painter = painterResource(R.drawable.ic_circle_done),
+                contentDescription = null,
+                tint = Color(0xFF9CA3AF),
+                modifier = Modifier.size(22.dp),
             )
+        }
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = Color.White,
+            modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text(event.name, color = Color(0xFF111827), fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }
