@@ -157,24 +157,30 @@ class FragmentPluginMarket : BaseFragment<PluginMarketViewModel, FragmentPluginM
 
     private fun renderDiscover() {
         val installedUi = latestUiInstalled.associateBy { it.id }
-        val entries = mutableListOf<DiscoverEntry>()
-        latestPresets
+        val presets = latestPresets
             .filter { matches(query, it.name, it.description, it.source, it.tags?.joinToString(" ")) }
-            .forEach { entries += DiscoverEntry.Preset(it) }
-        latestUiAvailable
-            .filter { matches(query, it.name, it.description, it.tags?.joinToString(" ")) }
-            .forEach { entries += DiscoverEntry.Ui(it, installedUi[it.id]?.version) }
-        latestDex
-            .filter { matches(query, it.entry.name, it.entry.description, it.entry.tags?.joinToString(" ")) }
-            .forEach { entries += DiscoverEntry.Dex(it) }
+            .map { DiscoverEntry.Preset(it) }
+        val plugins = buildList {
+            latestUiAvailable
+                .filter { matches(query, it.name, it.description, it.tags?.joinToString(" ")) }
+                .forEach { add(DiscoverEntry.Ui(it, installedUi[it.id]?.version)) }
+            latestDex
+                .filter { matches(query, it.entry.name, it.entry.description, it.entry.tags?.joinToString(" ")) }
+                .forEach { add(DiscoverEntry.Dex(it)) }
+        }
 
-        binding?.discoverEmpty?.visibility = if (entries.isEmpty()) View.VISIBLE else View.GONE
+        binding?.presetSectionTitle?.visibility = if (presets.isEmpty()) View.GONE else View.VISIBLE
+        binding?.pluginSectionTitle?.visibility = if (plugins.isEmpty()) View.GONE else View.VISIBLE
+        binding?.discoverEmpty?.visibility = if (presets.isEmpty() && plugins.isEmpty()) View.VISIBLE else View.GONE
         binding?.marketSource?.text = viewModel.activeSource().name
-        renderGrid(binding?.discoverContainer, entries) { card, entry ->
+        renderGrid(binding?.presetContainer, presets) { card, entry ->
+            if (entry is DiscoverEntry.Preset) bindDiscoverPreset(card, entry.preset)
+        }
+        renderGrid(binding?.discoverContainer, plugins) { card, entry ->
             when (entry) {
-                is DiscoverEntry.Preset -> bindDiscoverPreset(card, entry.preset)
                 is DiscoverEntry.Ui -> bindDiscoverUi(card, entry.plugin, entry.installedVersion)
                 is DiscoverEntry.Dex -> bindDiscoverDex(card, entry.item)
+                is DiscoverEntry.Preset -> Unit
             }
         }
     }
