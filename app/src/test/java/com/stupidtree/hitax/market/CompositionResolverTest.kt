@@ -134,6 +134,18 @@ class CompositionResolverTest {
     }
 
     @Test
+    fun installedPluginMissingFromCurrentIndexIsNotReportedAsMissing() {
+        val plan = resolve(
+            next = preset("new", PresetPluginRef("installed-ui", "ui")),
+            available = emptyMap(),
+            installed = mapOf(CompositionKind.UI to setOf("installed-ui")),
+        )
+
+        assertTrue(plan.missing.isEmpty())
+        assertTrue(plan.entry("installed-ui", CompositionKind.UI).enabled)
+    }
+
+    @Test
     fun unknownIndexIsNotInstalledButNotReportedAsMissingArtifact() {
         val plan = resolve(
             next = preset("new", PresetPluginRef("ghost", "ui")),
@@ -145,6 +157,38 @@ class CompositionResolverTest {
             listOf(CompositionMissing("ghost", CompositionKind.UI, CompositionMissingReason.NotInIndex)),
             plan.missing,
         )
+    }
+
+    @Test
+    fun requiredNotInstalledIsNotBlockingButRequiredUnknownIndexIs() {
+        val installable = resolve(
+            next = preset("new", PresetPluginRef("ui", "ui", required = true)),
+            available = mapOf(CompositionKind.UI to setOf("ui")),
+            installed = emptyMap(),
+        )
+        assertTrue(installable.missing.any { it.reason == CompositionMissingReason.NotInstalled })
+        assertTrue(installable.blockingRequiredMissing().isEmpty())
+
+        val impossible = resolve(
+            next = preset("new", PresetPluginRef("ghost", "ui", required = true)),
+            available = emptyMap(),
+            installed = emptyMap(),
+        )
+        assertEquals(
+            listOf(CompositionMissing("ghost", CompositionKind.UI, CompositionMissingReason.NotInIndex)),
+            impossible.blockingRequiredMissing(),
+        )
+    }
+
+    @Test
+    fun optionalUnknownIndexIsNotBlocking() {
+        val plan = resolve(
+            next = preset("new", PresetPluginRef("ghost", "ui", required = false)),
+            available = emptyMap(),
+            installed = emptyMap(),
+        )
+
+        assertTrue(plan.blockingRequiredMissing().isEmpty())
     }
 
     @Test

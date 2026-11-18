@@ -35,6 +35,17 @@ data class CompositionPlan(
     val entries: List<CompositionEntry>,
     val missing: List<CompositionMissing>,
 ) {
+    /**
+     * 会阻止应用 preset 的必选缺失。
+     *
+     * `NotInstalled` 是可安装缺口，必须交给 materializer；只有“索引/清单里根本没有”
+     * 才是预检阶段无法解决的阻塞。
+     */
+    fun blockingRequiredMissing(): List<CompositionMissing> = missing.filter { item ->
+        item.reason != CompositionMissingReason.NotInstalled &&
+            entries.any { it.id == item.id && it.kind == item.kind && it.required }
+    }
+
     fun dump(): String = buildString {
         appendLine("entries:")
         entries.forEach {
@@ -64,7 +75,7 @@ object CompositionResolver {
         previous: MarketPreset?,
         available: Map<CompositionKind, Set<String>>,
         installed: Map<CompositionKind, Set<String>>,
-        userDisabled: Map<CompositionKind, Set<String>>,
+        userDisabled: Map<CompositionKind, Set<String>> = emptyMap(),
         killSwitches: Set<String> = emptySet(),
     ): CompositionPlan {
         val entries = LinkedHashMap<Pair<CompositionKind, String>, CompositionEntry>()
@@ -107,9 +118,11 @@ object CompositionResolver {
         val missing = mutableListOf<CompositionMissing>()
         next?.refs().orEmpty().forEach { ref ->
             val kind = ref.kind()
+            val installedNow = kind != CompositionKind.BUILTIN && ref.id in installed[kind].orEmpty()
             val known = when (kind) {
                 CompositionKind.BUILTIN -> ref.id in baseIds
-                CompositionKind.DEX, CompositionKind.UI -> ref.id in available[kind].orEmpty()
+                // 已安装但暂时不在索引里的插件仍可启用，不能误报为缺失。
+                CompositionKind.DEX, CompositionKind.UI -> installedNow || ref.id in available[kind].orEmpty()
             }
             if (!known) {
                 missing += CompositionMissing(
@@ -121,7 +134,7 @@ object CompositionResolver {
                         CompositionMissingReason.NotInIndex
                     },
                 )
-            } else if (kind != CompositionKind.BUILTIN && ref.id !in installed[kind].orEmpty()) {
+            } else if (kind != CompositionKind.BUILTIN && !installedNow) {
                 missing += CompositionMissing(ref.id, kind, CompositionMissingReason.NotInstalled)
             }
         }
