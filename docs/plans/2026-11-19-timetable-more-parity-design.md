@@ -82,8 +82,8 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
 - 课程提醒：`CourseReminderStore.setEnabled` + `CourseReminderScheduler.autoSchedule`；
   开启时请求 `POST_NOTIFICATIONS`；拒绝则保持关闭并提示。
 - 实时课程：`LiveCourseSettings.setEnabled`；状态实时刷新。
-- 使用统计：`UsageStatsStore`（SharedPreferences，默认 `true`）；本版本只记录用户偏好，
-  不上传事件，UI 文案保留上游含义。后续接入遥测时复用同一开关。
+- 使用统计：`UsageStatsStore`（SharedPreferences，默认 `false`，首次启动询问）；
+  开启后走 Room 队列 + WorkManager 上传，可清除。
 
 ### 4.3 验收
 
@@ -110,8 +110,8 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
 - 页面：深圳课程浏览；
 - 首版：原生课程池列表（`CourseCatalogService` → EAS `getAvailableCourses`）；
   未登录显示「连接 Web 教务」，已登录按学期分页展示课程；
-- 明确限制：已实现课程列表，但选课任务、附件、历史挂科率、教师检索等
-  `ShenzhenCourseCatalogActivity` 的完整能力仍未移植；
+- 已实现：课程列表、关键词检索、课程详情、简介/中英文教学大纲附件、单课程选课；
+- 明确限制：历史挂科率受教务隐私限制；完整选课任务、教师资料页仍未移植；
 - 插件不声明 Activity/Service，仍由 `PluginUiActivity` 承载。
 
 ### 5.3 插件页 chrome
@@ -136,9 +136,8 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
 
 ### Phase 2
 
-1. 深圳课程浏览补齐选课任务/附件/历史挂科率/教师检索；
-2. 公告接入已读状态；
-3. 插件容器统一 TopAppBar，移除各插件重复标题。
+1. 深圳课程浏览补齐选课任务/历史挂科率/教师资料；
+2. 公告接入已读状态。
 
 ## 7. 设备验证（2026-11-19）
 
@@ -151,7 +150,7 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
   - 课程提醒请求通知权限后写入 `course_reminder`，开关重启保持；
   - 实时课程写入 `live_courses`，使用统计写入 `usage_stats`，重启保持。
 - 深圳课程浏览打开原生课程池：未登录显示连接 Web 教务；已登录按学期分页展示课程；
-  选课任务/附件/历史挂科率仍待 Phase 2。
+  详情/附件/关键词/单课程选课已实现；选课任务/历史挂科率/教师资料仍待 Phase 2。
 - 新插件模块：
   - `plugin-ui-announcement`（0.1.0）
   - `plugin-ui-community`（0.1.0）
@@ -159,12 +158,13 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
 构建/校验：`:app:assembleDebug`、`:app:testDebugUnitTest`、`:app:lintDebug`、
 两个新插件的 `lintDebug`、`:plugin-ui-links:lintDebug` 全部通过。
 
-## 8. 风险
+## 8. 风险与已知边界
 
-- 新插件未进入线上 preset 索引前，默认整合包不会自动安装；Phase 1 先保证
-  “已安装则可用”，并在市场索引更新后纳入 preset。
-- 使用统计没有后端；设计上只做本地开关，不能宣称已接入遥测。
-- 深圳课程浏览首版只做了课程池列表；选课/附件/历史挂科率/教师检索未完成。
+- 自有索引已在 `hita.kajimi.cc` 部署，HITA-Android refs 含新插件；上游官方
+  `hita-community-plugins` 索引未同步。
+- 使用统计后端已部署到 `hita.kajimi.cc`；实际人数需要真实客户端事件累积。
+- 历史挂科率受教务隐私限制，不能合法生成其他教学班统计。
+- 完整选课任务、教师资料页尚未移植；附件真实内容未在登录态设备验证。
 
 
 ## 9. 实现状态审计（2026-11-19）
@@ -177,12 +177,12 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
 | 更多「公告」入口 | 完成 | 打开 announcement 插件；内置“OH-MY-HITA 开发中”公告，后端空列表仍可见 |
 | 课程提醒开关 | 完成 | 权限、pref、WorkManager 周期任务均已验证 |
 | 实时课程开关 | 完成 | `live_courses` 持久化 |
-| 使用统计开关 | 部分完成（按设计） | 仅本地 `usage_stats`，没有遥测上传 |
-| 深圳课程浏览 | 部分完成 | 原生课程池列表 + 登录门禁；选课/附件/历史挂科率/教师未做 |
+| 使用统计开关 | 完成 | 自托管 `/api/usage` 已部署；Room/WorkManager/白名单/清除已验证 |
+| 深圳课程浏览 | 部分完成 | 列表/关键词/详情/附件/选课已完成；教师资料、完整选课任务、历史挂科率未完成 |
 | 新插件模块/本地市场索引 | 完成 | 两个 0.1.0 APK、sha256、settings.gradle |
-| 新插件随整合包自动安装 | 未完成 | 线上 preset 索引未更新；当前需市场/调试安装 |
+| 新插件随整合包自动安装 | 完成（自有索引） | `hita.kajimi.cc` 索引已带 HITA-Android refs；上游官方索引未改 |
 | 公告已读状态 | 未完成 | Phase 2 |
-| 旧插件统一 TopAppBar | 未完成 | 成绩/外观/培养方案仍无统一返回头，Phase 2 |
-| 更多页与 3.1.2 完全同构 | 部分完成 | 新增行已齐；右上角已改为右侧抽屉并含插件市场；仍保留宿主独有的应用设置入口 |
+| 旧插件统一 TopAppBar | 完成 | 所有运行时插件使用 PluginUiActivity Toolbar，重复标题已移除 |
+| 更多页与 3.1.2 完全同构 | 部分完成 | 新增行/抽屉完成；仍保留宿主独有的应用设置入口；上游像素未全量复核 |
 
 结论：**Phase 1 主路径完成；Phase 2 与整合包发布链路未完成**。

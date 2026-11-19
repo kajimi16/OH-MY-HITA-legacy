@@ -50,8 +50,9 @@ plugin_market_view, timetable_open, today_open, more_open
 已有数据源：`EASRepository.getAvailableCourses`、`selectCourse`。
 本轮新增：
 
-- `CourseCatalogService.selectCourse(...)`；
-- 课程卡“选课”按钮（先确认）；
+- `CourseCatalogService.selectCourse(...)`、`attachments(...)`；
+- 课程卡“选课”“详情”按钮；
+- 课程名/教师关键词检索；
 - 失败/未登录状态提示。
 
 以下仍依赖未移植的 `EASShenzhenRepository`：
@@ -62,7 +63,7 @@ plugin_market_view, timetable_open, today_open, more_open
 - 本地 `market/index.json` 增加 HITA-L / HITA-Android 的 `presets`；
 - HITA-Android refs 加入 announcement/community；
 - uiPlugins 增加可选人数字段；
-- 线上 registry 仍需同内容发布后才能自动安装。
+- 自有 `hita.kajimi.cc` 索引已发布；上游官方 registry 未同步。
 
 ## 5. 验收
 
@@ -95,8 +96,8 @@ plugin_market_view, timetable_open, today_open, more_open
 
 仍缺：
 
-- HITA 后端 `/api/usage` 的实际域名部署与聚合（仓库已有 Worker 参考实现，尚未上线）；
-- 深圳课程池历史挂科率/教师检索/选课任务（参考工程注明历史挂科率受教务隐私限制，
-  选课任务需完整 `EASShenzhenRepository` 移植）；
-- 线上 registry/preset 发布（本地索引已更新，远端仍需同步）；
+- 深圳课程池历史挂科率/教师检索/选课任务（历史挂科率受教务隐私限制）；
+- 公告已读状态；
+- 登录态课程附件真实内容验证；
+- 上游官方 `hita-community-plugins` registry 未同步（自有 `hita.kajimi.cc` 已部署）。
 

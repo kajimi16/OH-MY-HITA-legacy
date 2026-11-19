@@ -45,7 +45,8 @@ object UsageAnalytics {
                     timestamp = System.currentTimeMillis(),
                 )
             )
-            UsageUploadScheduler.enqueue(app)
+            val pending = UsageDatabase.get(app).usageDao().count()
+            UsageUploadScheduler.enqueue(app, immediate = pending >= 20)
         }
     }
 

@@ -1,6 +1,8 @@
 # 新页面 UI 一致性审查（2026-11-19）
 
-> 状态：审查完成；本文只给结论与证据，不代表已修复  
+> 状态：审查完成；后续已修复插件 TopAppBar、更多缺失入口、时间表课表设置、
+> 课程池基础能力；HITA-Android 主页面像素级残差（今日 hero、资讯/时间表）仍未全量复核。
+> 原文保留为审查基线。  
 > 基准：HITA-L ↔ HITA_L 1.5.3；HITA-Android ↔ HITA_Android 3.1.2  
 > 已有证据：`docs/porting-status.md`、`docs/evidence/7.1/2026-11-18/report.md`
 
