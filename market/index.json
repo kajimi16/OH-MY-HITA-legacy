@@ -52,10 +52,10 @@
       "name": "公告",
       "version": "0.1.0",
       "url": "announcement-0.1.0.apk",
-      "sha256": "5ad3f6088a24dfbed9cb84655f9c49a2c0349e303d3e64b8f3f40306fdb051fb",
+      "sha256": "43282ff7ff827613378ec134097e69d0aab65b2b185f000058d6401920f62dce",
       "description": "版本/服务公告列表（运行时界面插件）。",
       "minHostApi": 7,
-      "size": 822222,
+      "size": 822401,
       "tags": [
         "HITA",
         "插件"
