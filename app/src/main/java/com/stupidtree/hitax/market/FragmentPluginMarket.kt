@@ -112,7 +112,10 @@ class FragmentPluginMarket : BaseFragment<PluginMarketViewModel, FragmentPluginM
             } else {
                 android.content.Intent(context, com.stupidtree.hitax.ui.main.MainActivity::class.java)
             }
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.addFlags(
+                android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP,
+            )
             startActivity(intent)
             requireActivity().finish()
         }

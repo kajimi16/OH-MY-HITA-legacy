@@ -724,7 +724,10 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 val remain = 650 - (android.os.SystemClock.elapsedRealtime() - switchStartedAt)
                 if (remain > 0) Thread.sleep(remain)
                 applyProgress.postValue(SwitchProgress(100, "正在切换界面…"))
-                presetSwitch.postValue(PresetSwitchTarget(preset.id, targetShell))
+                // HITA-Android 的 shell 是宿主映射出来的，不要只按 preset.shell 判断。
+                presetSwitch.postValue(
+                    PresetSwitchTarget(preset.id, PresetStateStore.activeShell(ctx())),
+                )
             } else {
                 applyProgress.postValue(null)
             }
