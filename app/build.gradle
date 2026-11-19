@@ -10,6 +10,8 @@ def appVersionCodeValue = (project.findProperty("appVersionCode") ?: System.curr
 def appVersionNameValue = (project.findProperty("appVersionName") ?: "0.0.1") as String
 // 插件市场索引地址；留空时读应用私有目录（仅 debug 有内置演示）
 def pluginIndexUrl = (project.findProperty("pluginIndexUrl") ?: "") as String
+// 使用统计/插件人数后端；换成自己的 Worker 域名即可，路径固定 /api/usage、/api/market/stats。
+def usageBaseUrl = (project.findProperty("usageBaseUrl") ?: "https://api.hita.limpu.cn") as String
 // 由 :api:generateApiAbi 生成；发布插件时把同一个哈希写进索引的 apiAbi。
 def apiAbiFile = rootProject.file("api/api-abi.txt")
 def apiAbiValue = apiAbiFile.exists()
@@ -48,6 +50,7 @@ android {
         // 插件市场索引地址；为空时读 filesDir/market/index.json（本地联调）
         buildConfigField "String", "COMPOSE_RUNTIME_VERSION", "\"${compose_version}\""
         buildConfigField "String", "PLUGIN_INDEX_URL", "\"${pluginIndexUrl}\""
+        buildConfigField "String", "USAGE_BASE_URL", "\"${usageBaseUrl}\""
         buildConfigField "String", "API_ABI", "\"${apiAbiValue}\""
     }
 //    viewBinding{

@@ -160,7 +160,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
         if (ids.isEmpty()) return
         executor.execute {
             val url = URL(
-                "https://api.hita.limpu.cn/api/market/stats?ids=" +
+                com.stupidtree.hitax.BuildConfig.USAGE_BASE_URL.trimEnd('/') + "/api/market/stats?ids=" +
                     URLEncoder.encode(ids.take(50).joinToString(","), "UTF-8")
             )
             runCatching {

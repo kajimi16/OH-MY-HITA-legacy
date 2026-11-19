@@ -64,6 +64,6 @@ class UsageUploadWorker(
     }
 
     companion object {
-        private const val ENDPOINT = "https://api.hita.limpu.cn/api/usage"
+        private val ENDPOINT get() = com.stupidtree.hitax.BuildConfig.USAGE_BASE_URL.trimEnd('/') + "/api/usage"
     }
 }
