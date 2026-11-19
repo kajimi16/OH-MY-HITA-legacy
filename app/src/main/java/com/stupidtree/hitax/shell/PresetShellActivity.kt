@@ -541,8 +541,9 @@ private fun TimetablePage(service: TimetableService?) {
             AnimatedContent(
                 targetState = week,
                 transitionSpec = {
-                    (slideInHorizontally { it / 5 } + fadeIn()) togetherWith
-                        (slideOutHorizontally { -it / 5 } + fadeOut())
+                    val forward = targetState > initialState
+                    (slideInHorizontally { if (forward) it / 5 else -it / 5 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { if (forward) -it / 5 else it / 5 } + fadeOut())
                 },
                 label = "timetable_week",
             ) { animatedWeek ->
@@ -790,7 +791,7 @@ private fun MorePage(service: TimetableService?) {
                 open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
             }
             MoreRow("个人成绩明细", "成绩状态 · 分项得分 · 权重折算", Icons.Default.Assessment, rowHeight = 70.dp) {
-                open("com.stupidtree.hitax.ui.eas.score.ScoreInquiryActivity")
+                openPlugin("com.stupidtree.hita.ui.score")
             }
             MoreRow("空教室", icon = Icons.Default.MeetingRoom, rowHeight = 48.dp) { open("com.stupidtree.hitax.ui.eas.classroom.EmptyClassroomActivity") }
             MoreRow("培养方案", "完成度 · 学分类别 · 培养课组", Icons.Default.School, rowHeight = 56.dp) {
@@ -821,16 +822,8 @@ private fun MorePage(service: TimetableService?) {
                     )
                 )
             }
-            MoreRow("应用设置", "外观、提醒与数据", Icons.Default.Settings) {
-                context.startActivity(
-                    android.content.Intent(
-                        context,
-                        com.stupidtree.hitax.ui.main.MainActivity::class.java,
-                    ).putExtra(
-                        com.stupidtree.hitax.ui.main.MainActivity.EXTRA_SKIP_SHELL_REDIRECT,
-                        true,
-                    )
-                )
+            MoreRow("应用设置", "外观、字体与界面", Icons.Default.Settings) {
+                openPlugin("com.stupidtree.hita.ui.appearance")
             }
         }
     }
