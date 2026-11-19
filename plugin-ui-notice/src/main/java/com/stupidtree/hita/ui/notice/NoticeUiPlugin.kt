@@ -56,7 +56,7 @@ class NoticeUiPlugin : ComposeUiPlugin {
                         if (cookie.isBlank()) return@LaunchedEffect
                         loading = true
                         error = null
-                        runCatching { withContext(Dispatchers.IO) { fetch(cookie) } }
+                        runCatching { withContext(Dispatchers.IO) { fetch(cookie, context.applicationContext) } }
                             .onSuccess { notices = it }
                             .onFailure { error = it.message ?: "加载失败" }
                         loading = false
@@ -128,5 +128,9 @@ class NoticeUiPlugin : ComposeUiPlugin {
         CookieManager.getInstance().getCookie(NoticeParser.PORTAL).orEmpty()
     }.getOrDefault("")
 
-    private fun fetch(cookie: String): List<CampusNotice> = NoticeFetcher.fetch(cookie)
+    private fun fetch(cookie: String, context: android.content.Context): List<CampusNotice> {
+        val feed = NoticeFeeds.of(NoticeFeeds.currentCampus(context))
+        NoticeFeeds.unsupportedMessage(feed)?.let { error(it) }
+        return NoticeFetcher.fetch(cookie, feed)
+    }
 }

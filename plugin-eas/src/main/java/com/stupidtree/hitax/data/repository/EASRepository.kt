@@ -43,7 +43,18 @@ class EASRepository internal constructor(application: Application) {
     /**
      * 进行登录
      */
+    /** 校区门控：协议未移植的校区直接拒绝，避免请求打到深圳域名。 */
+    private fun campusBlocked(): String? =
+        com.stupidtree.hitax.data.model.eas.CampusGate.unsupportedMessage(
+            easPreferenceSource.getEasToken().campus
+        )
+
     fun login(username: String, password: String): LiveData<DataState<Boolean>> {
+        campusBlocked()?.let {
+            return LiveDataUtils.getMutableLiveData<DataState<Boolean>>(
+                DataState(DataState.STATE.FETCH_FAILED, it)
+            )
+        }
         return easService.login(username, password, null).map {
             if (it.state == DataState.STATE.SUCCESS) {
                 it.data?.let { it1 -> easPreferenceSource.saveEasToken(it1) }
@@ -89,6 +100,11 @@ class EASRepository internal constructor(application: Application) {
      * 进行获取学年学期
      */
     fun getAllTerms(): LiveData<DataState<List<TermItem>>> {
+        campusBlocked()?.let {
+            return LiveDataUtils.getMutableLiveData<DataState<List<TermItem>>>(
+                DataState(DataState.STATE.FETCH_FAILED, it)
+            )
+        }
         val easToken = easPreferenceSource.getEasToken()
         if (easToken.isLogin()) {
             return easService.getAllTerms(easToken)
@@ -176,6 +192,11 @@ class EASRepository internal constructor(application: Application) {
      * 获取考试信息
      */
     fun getExamInfo(): LiveData<DataState<List<ExamItem>>> {
+        campusBlocked()?.let {
+            return LiveDataUtils.getMutableLiveData<DataState<List<ExamItem>>>(
+                DataState(DataState.STATE.FETCH_FAILED, it)
+            )
+        }
         val easToken = easPreferenceSource.getEasToken()
         if (easToken.isLogin()) {
             return easService.getExamItems(easToken)
