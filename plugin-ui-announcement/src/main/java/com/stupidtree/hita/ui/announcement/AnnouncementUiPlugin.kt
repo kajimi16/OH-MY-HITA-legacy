@@ -55,7 +55,7 @@ class AnnouncementUiPlugin : ComposeUiPlugin {
                         loading = true
                         error = null
                         runCatching { withContext(Dispatchers.IO) { fetch(context) } }
-                            .onSuccess { announcements = it }
+                            .onSuccess { announcements = listOf(localAnnouncement()) + it }
                             .onFailure { error = it.message ?: "加载失败" }
                         loading = false
                     }
@@ -124,6 +124,13 @@ class AnnouncementUiPlugin : ComposeUiPlugin {
         val title: String,
         val kind: String,
         val body: String,
+    )
+
+    private fun localAnnouncement() = Announcement(
+        title = "OH-MY-HITA 开发中",
+        kind = "本地公告",
+        body = "oh-my-hita开发中，欢迎开发插件，" +
+            "如果有需要拓展的宿主能力请直接邮件联系开发者卡基米1902163454@qq.com",
     )
 
     companion object {

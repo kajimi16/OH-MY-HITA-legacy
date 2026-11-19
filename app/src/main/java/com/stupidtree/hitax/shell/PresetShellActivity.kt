@@ -8,6 +8,7 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentContainerView
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -64,6 +66,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn as animFadeIn
+import androidx.compose.animation.fadeOut as animFadeOut
+import androidx.compose.animation.slideInHorizontally as animSlideIn
+import androidx.compose.animation.slideOutHorizontally as animSlideOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -200,6 +207,9 @@ private fun HitaAndroidShell(
         ShellTab("更多", R.drawable.ic_nav_navigation),
     ) }
     var selected by remember { mutableIntStateOf(1) }
+    var drawerOpen by remember { mutableStateOf(false) }
+    BackHandler(enabled = drawerOpen) { drawerOpen = false }
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             AnimatedContent(
@@ -213,7 +223,7 @@ private fun HitaAndroidShell(
                     2 -> TimetablePage(service)
                     3 -> AgentChatScreen(agentViewModel, remember(service) { runCatching { service?.getRecentTimetable()?.value?.id }.getOrNull() })
                     4 -> ShellNewsPage()
-                    5 -> MorePage(service)
+                    5 -> MorePage(service) { drawerOpen = true }
                     else -> Unit
                 }
             }
@@ -273,6 +283,97 @@ private fun HitaAndroidShell(
                 }
             }
         }
+    }
+    ShellDrawerOverlay(drawerOpen) { drawerOpen = false }
+    }
+}
+
+@Composable
+private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    fun launch(className: String) {
+        runCatching {
+            context.startActivity(
+                android.content.Intent().setClassName(context, className)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+        onClose()
+    }
+    AnimatedVisibility(
+        visible = open,
+        modifier = Modifier.fillMaxSize(),
+        enter = animSlideIn { it } + animFadeIn(),
+        exit = animSlideOut { it } + animFadeOut(),
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.32f))
+                    .clickable { onClose() },
+            )
+            Surface(
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(300.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 12.dp,
+            ) {
+                Column(
+                    Modifier.fillMaxSize().statusBarsPadding()
+                        .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                ) {
+                    Text("OH-MY-HITA", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text("HITA_Android 3.1.2", color = shellSecondary(), fontSize = 12.sp)
+                    Spacer(Modifier.height(18.dp))
+                    DrawerRow("课表管理") {
+                        com.stupidtree.hitax.utils.ActivityUtils.startTimetableManager(context)
+                        onClose()
+                    }
+                    DrawerRow("插件市场") {
+                        context.startActivity(
+                            android.content.Intent(context, com.stupidtree.hitax.market.PluginMarketActivity::class.java)
+                        )
+                        onClose()
+                    }
+                    DrawerRow("应用设置") {
+                        val installed = com.stupidtree.hitax.uiplugin.UiPluginManager(context).enabled()
+                            .any { it.id == "com.stupidtree.hita.ui.appearance" }
+                        if (!installed) {
+                            android.widget.Toast.makeText(context, "外观插件未安装", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            context.startActivity(
+                                android.content.Intent(context, com.stupidtree.hitax.uiplugin.PluginUiActivity::class.java)
+                                    .putExtra(
+                                        com.stupidtree.hitax.uiplugin.PluginUiActivity.EXTRA_PLUGIN_ID,
+                                        "com.stupidtree.hita.ui.appearance",
+                                    )
+                            )
+                        }
+                        onClose()
+                    }
+                    DrawerRow("连接 Web 教务") {
+                        launch("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
+                    }
+                    DrawerRow("关于") {
+                        context.startActivity(
+                            android.content.Intent(context, com.stupidtree.hitax.ui.about.ActivityAbout::class.java)
+                        )
+                        onClose()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerRow(title: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, fontSize = 16.sp, modifier = Modifier.weight(1f))
+        Icon(Icons.Default.ChevronRight, null, tint = shellTertiary(), modifier = Modifier.size(18.dp))
     }
 }
 
@@ -656,7 +757,7 @@ private fun dayOfWeek(time: Long): Int {
 }
 
 @Composable
-private fun MorePage(service: TimetableService?) {
+private fun MorePage(service: TimetableService?, onOpenDrawer: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("local_eas_token", android.content.Context.MODE_PRIVATE) }
     val userName = remember {
@@ -748,15 +849,8 @@ private fun MorePage(service: TimetableService?) {
                     tint = shellSecondary(),
                 )
             }
-            IconButton(onClick = {
-                context.startActivity(
-                    android.content.Intent(
-                        context,
-                        com.stupidtree.hitax.market.PluginMarketActivity::class.java,
-                    )
-                )
-            }) {
-                Icon(Icons.Default.Menu, contentDescription = "插件市场", tint = shellSecondary())
+            IconButton(onClick = onOpenDrawer) {
+                Icon(Icons.Default.Menu, contentDescription = "打开抽屉", tint = shellSecondary())
             }
         }
         Spacer(Modifier.height(22.dp))
