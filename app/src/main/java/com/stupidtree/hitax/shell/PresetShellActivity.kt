@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Link
@@ -100,6 +101,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
@@ -341,12 +343,26 @@ private fun HitaAndroidShell(
 @Composable
 private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = remember {
-        context.getSharedPreferences("local_eas_token", android.content.Context.MODE_PRIVATE)
+    val eas = remember {
+        (context.applicationContext as? HApplication)?.pluginHost?.service(
+            com.stupidtree.hita.api.EasService.KEY,
+        )
     }
-    val userName = remember {
-        prefs.getString("name", null)?.takeIf { it.isNotBlank() }
-            ?: prefs.getString("username", null)?.takeIf { it.isNotBlank() }
+    val userName = eas?.accountName()
+    val userSubtitle = eas?.accountSubtitle()?.takeIf { it.isNotBlank() }
+    val theme = remember {
+        (context.applicationContext as? HApplication)?.pluginHost?.service(
+            com.stupidtree.hita.api.ThemeController.KEY,
+        )
+    }
+    val styleLabel = when (theme?.themeStyle()) {
+        "apple_glass" -> "玻璃艺术"
+        "cyber" -> "赛博朋克"
+        "sora_cloud" -> "日映构成"
+        "p5" -> "波普涂鸦"
+        "deep_space" -> "深空星野"
+        "sumi" -> "墨韵"
+        else -> "经典搭配"
     }
     fun launch(className: String) {
         runCatching {
@@ -375,13 +391,12 @@ private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
             ) {
                 Column(
                     Modifier.fillMaxSize().statusBarsPadding()
-                        .verticalScroll(androidx.compose.foundation.rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .padding(horizontal = 16.dp),
                 ) {
                     Column(
                         Modifier.fillMaxWidth()
                             .clickable { launch("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity") }
-                            .padding(top = 45.dp, bottom = 28.dp),
+                            .padding(top = 78.dp, bottom = 13.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         androidx.compose.foundation.Image(
@@ -392,34 +407,106 @@ private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
                         Spacer(Modifier.height(16.dp))
                         Text(
                             userName ?: "点击进行教务登录",
-                            fontSize = 22.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(8.dp))
                         Text(
-                            if (userName == null) "未登录教务" else "已连接教务",
+                            userSubtitle ?: "未登录教务",
                             color = shellSecondary(),
                             fontSize = 16.sp,
+                            textAlign = TextAlign.Center,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    Spacer(Modifier.height(25.dp))
-                    DrawerRow("课表管理", R.drawable.ic_menu_settings) {
-                        com.stupidtree.hitax.utils.ActivityUtils.startTimetableManager(context)
+                    Box(
+                        Modifier.fillMaxWidth().height(1.dp)
+                            .background(Color(0xFFE5E7EB)),
+                    )
+                    DrawerRow(
+                        title = "界面风格 · $styleLabel",
+                        icon = Icons.Default.Palette,
+                    ) {
+                        context.startActivity(
+                            android.content.Intent(context, com.stupidtree.hitax.uiplugin.PluginUiActivity::class.java)
+                                .putExtra(
+                                    com.stupidtree.hitax.uiplugin.PluginUiActivity.EXTRA_PLUGIN_ID,
+                                    "com.stupidtree.hita.ui.appearance",
+                                )
+                        )
                         onClose()
                     }
-                    DrawerRow("用户与隐私协议", R.drawable.ic_info) {
+                    DrawerRow(
+                        title = "用户协议与隐私政策",
+                        iconRes = R.drawable.ic_info,
+                    ) {
                         (context as? androidx.fragment.app.FragmentActivity)?.let {
                             com.stupidtree.hitax.ui.about.UserAgreementDialog()
                                 .show(it.supportFragmentManager, "ua")
                         }
                         onClose()
                     }
-                    DrawerRow("关于HITSZ助手", R.drawable.logo) {
+                    DrawerRow(
+                        title = "用户反馈",
+                        icon = Icons.Default.Edit,
+                    ) {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://github.com/kajimi16/OH-MY-HITA/issues"),
+                            )
+                        )
+                        onClose()
+                    }
+                    DrawerRow(
+                        title = "关于HITA",
+                        iconRes = R.drawable.logo,
+                    ) {
                         context.startActivity(
                             android.content.Intent(context, com.stupidtree.hitax.ui.about.ActivityAbout::class.java)
                         )
                         onClose()
                     }
+                    Spacer(Modifier.weight(1f))
+                    Box(
+                        Modifier.fillMaxWidth().height(1.dp)
+                            .background(Color(0xFFE5E7EB)),
+                    )
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        "Co-authored by",
+                        color = shellSecondary(),
+                        fontSize = 14.sp,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "茶蘼 | 离谱 | 北极熊 | 软糯 | 纪行",
+                        color = Color(0xFF2F80ED),
+                        fontSize = 15.sp,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "RadiantAbyss",
+                        color = Color(0xFF2F80ED),
+                        fontSize = 15.sp,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        "Limpu 的赞赏码",
+                        color = shellTertiary(),
+                        fontSize = 15.sp,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(24.dp))
                 }
             }
         }
@@ -427,19 +514,38 @@ private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
 }
 
 @Composable
-private fun DrawerRow(title: String, iconRes: Int, onClick: () -> Unit) {
+private fun DrawerRow(
+    title: String,
+    iconRes: Int? = null,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    onClick: () -> Unit,
+) {
     Row(
-        Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick)
+        Modifier.fillMaxWidth().height(56.dp).clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        androidx.compose.material3.Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = Color(0xFF2563EB),
-            modifier = Modifier.size(24.dp),
+        when {
+            icon != null -> androidx.compose.material3.Icon(
+                icon,
+                contentDescription = null,
+                tint = Color(0xFF2563EB),
+                modifier = Modifier.size(24.dp),
+            )
+            iconRes != null -> androidx.compose.material3.Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = Color(0xFF2563EB),
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        Text(
+            title,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(start = 13.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        Text(title, fontSize = 14.sp, modifier = Modifier.padding(start = 16.dp))
     }
 }
 
