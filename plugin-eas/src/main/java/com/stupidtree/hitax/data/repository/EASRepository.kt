@@ -527,10 +527,11 @@ class EASRepository internal constructor(application: Application) {
         term: TermItem,
         poolCode: String = "bx-b-b",
         page: Int = 1,
-        pageSize: Int = 20
+        pageSize: Int = 20,
+        keyword: String = "",
     ): LiveData<DataState<List<TermSubject>>> {
         val token = easPreferenceSource.getEasToken()
-        return (easService as EASource).getAvailableCourses(token, term, poolCode, page, pageSize)
+        return (easService as EASource).getAvailableCourses(token, term, poolCode, page, pageSize, keyword)
     }
 
     fun selectCourse(

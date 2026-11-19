@@ -85,6 +85,7 @@ plugin_market_view, timetable_open, today_open, more_open
 - 市场 `downloads`/`activeUsers` 可选字段与卡片展示；
 - `CourseCatalogService.selectCourse` 与课程卡选课按钮；
 - 课程卡“详情”弹窗：课程简介/中英文教学大纲附件名称（`EASource` 现有 Web 会话）；
+- 课程名/教师关键词检索（`p_gjz`/`p_kc_gjz`）；
 - `ShenzhenCourseAttachment` 所需字段映射到 `TermSubject.externalCourseId/taskNumber`；
 - `server/usage/` Cloudflare Worker 参考实现（`POST /api/usage`、
   `GET /api/market/stats`）与 D1 schema；

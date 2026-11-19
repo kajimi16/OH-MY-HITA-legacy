@@ -21,6 +21,7 @@ import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
+import androidx.compose.material.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +61,8 @@ class CommunityUiPlugin : ComposeUiPlugin {
                     var reload by remember { mutableIntStateOf(0) }
                     var page by remember { mutableIntStateOf(1) }
                     var selectedTerm by remember { mutableStateOf<TermItem?>(null) }
+                    var keyword by remember { mutableStateOf("") }
+                    var appliedKeyword by remember { mutableStateOf("") }
                     var status by remember { mutableStateOf("") }
                     var detailCourse by remember { mutableStateOf<TermSubject?>(null) }
                     var detailText by remember { mutableStateOf("") }
@@ -74,8 +77,10 @@ class CommunityUiPlugin : ComposeUiPlugin {
                             }
                         }
                     }
-                    val coursesLive = remember(service, selectedTerm, page, reload) {
-                        selectedTerm?.let { service?.courses(it, page = page, pageSize = 20) }
+                    val coursesLive = remember(service, selectedTerm, page, reload, appliedKeyword) {
+                        selectedTerm?.let {
+                            service?.courses(it, page = page, pageSize = 20, keyword = appliedKeyword)
+                        }
                     }
                     val coursesState = coursesLive?.observeAsState()?.value
 
@@ -116,6 +121,23 @@ class CommunityUiPlugin : ComposeUiPlugin {
                                 color = MaterialTheme.colors.onSurface.copy(alpha = 0.7f),
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                             )
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextField(
+                                value = keyword,
+                                onValueChange = { keyword = it },
+                                placeholder = { Text("课程名 / 教师") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = {
+                                appliedKeyword = keyword.trim()
+                                page = 1
+                                reload++
+                            }) { Text("搜索") }
                         }
                         when {
                             termsState == null || termsState?.state == DataState.STATE.NOTHING ->

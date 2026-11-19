@@ -23,6 +23,7 @@ interface CourseCatalogService {
         poolCode: String = "bx-b-b",
         page: Int = 1,
         pageSize: Int = 20,
+        keyword: String = "",
     ): LiveData<DataState<List<TermSubject>>>
 
     /** 加入选课（实际选课动作）。 */

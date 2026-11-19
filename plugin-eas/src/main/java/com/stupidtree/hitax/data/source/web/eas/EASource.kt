@@ -1415,13 +1415,15 @@ class EASource internal constructor() : EASService {
         term: TermItem,
         poolCode: String = "bx-b-b",
         page: Int = 1,
-        pageSize: Int = 20
+        pageSize: Int = 20,
+        keyword: String = "",
     ): LiveData<DataState<List<TermSubject>>> {
         val res = MutableLiveData<DataState<List<TermSubject>>>()
         Thread {
             val result = mutableListOf<TermSubject>()
             try {
-                val body = """{"RoleCode":"01","p_pylx":"${token.getStudentType()}","p_xn":"${term.yearCode}","p_xq":"${term.termCode}","p_xnxq":"${term.getCode()}","p_gjz":"","p_kc_gjz":"","p_xkfsdm":"$poolCode","pageNum":$page,"pageSize":$pageSize}"""
+                val escapedKeyword = keyword.replace("\\", "\\\\").replace("\"", "\\\"")
+                val body = """{"RoleCode":"01","p_pylx":"${token.getStudentType()}","p_xn":"${term.yearCode}","p_xq":"${term.termCode}","p_xnxq":"${term.getCode()}","p_gjz":"$escapedKeyword","p_kc_gjz":"$escapedKeyword","p_xkfsdm":"$poolCode","pageNum":$page,"pageSize":$pageSize}"""
                 val resp = jsonPost(token, "/app/Xsxk/queryKxrw?_lang=zh_CN", body)
                 val jo = JsonUtils.getJsonObject(resp.body())
                 val list = jo?.optJSONArray("yxkcList")
