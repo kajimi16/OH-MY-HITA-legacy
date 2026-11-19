@@ -10,7 +10,9 @@
 market/
 ├── index.json      # 索引：逻辑插件 + 界面插件
 ├── hello.dex       # 示例逻辑插件的 dex（由 :sample-plugin 生成）
-└── course-resource-0.4.8.apk   # 课程资源界面插件（示例，实际可放任意 HTTPS 地址）
+├── course-resource-0.4.8.apk   # 课程资源界面插件（示例，实际可放任意 HTTPS 地址）
+├── announcement-0.1.0.apk      # 公告界面插件
+└── community-0.1.0.apk         # 深圳课程浏览入口插件
 ```
 
 ## 索引格式

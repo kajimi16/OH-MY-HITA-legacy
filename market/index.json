@@ -46,6 +46,38 @@
       ],
       "repo": "https://github.com/kajimi16/hita-community-plugins",
       "updatedAt": "2026-11-05"
+    },
+    {
+      "id": "com.stupidtree.hita.ui.announcement",
+      "name": "公告",
+      "version": "0.1.0",
+      "url": "announcement-0.1.0.apk",
+      "sha256": "5ad3f6088a24dfbed9cb84655f9c49a2c0349e303d3e64b8f3f40306fdb051fb",
+      "description": "版本/服务公告列表（运行时界面插件）。",
+      "minHostApi": 7,
+      "size": 822222,
+      "tags": [
+        "HITA",
+        "插件"
+      ],
+      "repo": "https://github.com/kajimi16/OH-MY-HITA",
+      "updatedAt": "2026-11-19"
+    },
+    {
+      "id": "com.stupidtree.hita.ui.community",
+      "name": "深圳课程浏览",
+      "version": "0.1.0",
+      "url": "community-0.1.0.apk",
+      "sha256": "fa33fce6a1d6f5184f45e8ca3e9f3d93e71966fd4abab39f9d646665d48d3346",
+      "description": "深圳教务入口（后续升级原生课程池）。",
+      "minHostApi": 7,
+      "size": 818133,
+      "tags": [
+        "HITA",
+        "插件"
+      ],
+      "repo": "https://github.com/kajimi16/OH-MY-HITA",
+      "updatedAt": "2026-11-19"
     }
   ]
 }

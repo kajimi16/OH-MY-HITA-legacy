@@ -130,4 +130,17 @@ Shell 入口：
 结论：Shell 结构已对齐 3 页并达到 2% 阈值；时间表已从节次网格改为时间轴网格；仍未整体一比一。
 
 新页面（Shell 6 页、市场、插件容器、成绩/外观/培养方案）的逐项 UI 一致性审查见
-`docs/plans/2026-11-19-new-page-ui-review.md`。
+`docs/plans/2026-11-19-new-page-ui-review.md`；
+时间表/更多同步与缺失插件设计见 `docs/plans/2026-11-19-timetable-more-parity-design.md`。
+
+## 0.7.2 时间表/更多与缺失插件（2026-11-19）
+
+- 时间表右上角恢复「课表设置」，调用 `TimetableUiService.openStylePanel`；
+- 更多新增：提交课程资料 PR、实用网址、公告、课程提醒、实时课程、使用统计；
+- 课程提醒/实时课程/使用统计三个开关接入本地设置并在冷启动后保持；
+- 新 UI 插件：`plugin-ui-announcement`（公告 API）、
+  `plugin-ui-community`（深圳课程浏览入口页）；
+- `plugin-ui-links` 移除了误混入的外观/字体控制；
+- 深圳课程浏览首版是入口页，不是原生课程池；WebView 直开会被教务移动端限制拒绝，
+  原生 `ShenzhenCourseCatalogActivity` 列入后续。
+- 设备验证：课表设置面板、PR、实用网址、公告空态、深圳入口、三个开关持久化均通过。

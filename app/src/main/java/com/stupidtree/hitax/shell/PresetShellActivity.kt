@@ -1,11 +1,17 @@
 package com.stupidtree.hitax.shell
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentContainerView
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -28,6 +34,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
@@ -46,6 +56,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -490,13 +501,13 @@ private fun TimetablePage(service: TimetableService?) {
                     )
                 )
             }) { Icon(Icons.Default.Share, "分享课表", tint = shellSecondary()) }
-            val isNight = (context.resources.configuration.uiMode and
-                android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-                android.content.res.Configuration.UI_MODE_NIGHT_YES
-            val theme = (context.applicationContext as HApplication).pluginHost
-                .service(com.stupidtree.hita.api.ThemeController.KEY)
-            IconButton(onClick = { theme?.setNightMode(!isNight) }) {
-                Icon(Icons.Default.DarkMode, "切换深浅色", tint = shellSecondary())
+            IconButton(onClick = {
+                val activity = context as? androidx.fragment.app.FragmentActivity
+                val uiService = (context.applicationContext as? HApplication)
+                    ?.pluginHost?.service(com.stupidtree.hita.api.TimetableUiService.KEY)
+                if (activity != null && uiService != null) uiService.openStylePanel(activity)
+            }) {
+                Icon(Icons.Default.Settings, "课表设置", tint = shellSecondary())
             }
         }
         Spacer(Modifier.height(16.4.dp))
@@ -681,11 +692,45 @@ private fun MorePage(service: TimetableService?) {
             )
         }
     }
-    val communityInstalled = remember {
-        runCatching {
-            com.stupidtree.hitax.uiplugin.UiPluginManager(context).enabled()
-                .any { it.id == "com.stupidtree.hita.ui.community" }
-        }.getOrDefault(false)
+    val reminderStore = remember {
+        com.stupidtree.hitax.data.source.preference.CourseReminderStore.getInstance(context)
+    }
+    var reminderEnabled by remember { mutableStateOf(reminderStore.isEnabled()) }
+    var liveEnabled by remember {
+        mutableStateOf(com.stupidtree.hitax.livecourse.LiveCourseSettings.isEnabled(context))
+    }
+    var usageEnabled by remember {
+        mutableStateOf(com.stupidtree.hitax.data.source.preference.UsageStatsStore.isEnabled(context))
+    }
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            reminderStore.setEnabled(true)
+            com.stupidtree.hitax.data.work.CourseReminderScheduler.autoSchedule(context)
+            reminderEnabled = true
+            android.widget.Toast.makeText(context, "课程提醒已开启（上课前15分钟提醒）", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            reminderEnabled = false
+            android.widget.Toast.makeText(context, "需要通知权限才能发送课程提醒", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+    fun setReminder(enabled: Boolean) {
+        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        reminderStore.setEnabled(enabled)
+        com.stupidtree.hitax.data.work.CourseReminderScheduler.autoSchedule(context)
+        reminderEnabled = enabled
+        android.widget.Toast.makeText(
+            context,
+            if (enabled) "课程提醒已开启（上课前15分钟提醒）" else "课程提醒已关闭",
+            android.widget.Toast.LENGTH_SHORT,
+        ).show()
     }
     Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())
         .padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -797,10 +842,8 @@ private fun MorePage(service: TimetableService?) {
             MoreRow("培养方案", "完成度 · 学分类别 · 培养课组", Icons.Default.School, rowHeight = 56.dp) {
                 openPlugin("com.stupidtree.hita.ui.training")
             }
-            if (communityInstalled) {
-                MoreRow("深圳课程浏览", "教务选课池 · 全校课表（需 Web 登录）", Icons.Default.Search, rowHeight = 67.dp) {
-                    openPlugin("com.stupidtree.hita.ui.community")
-                }
+            MoreRow("深圳课程浏览", "教务选课池 · 全校课表（需 Web 登录）", Icons.Default.Search, rowHeight = 67.dp) {
+                openPlugin("com.stupidtree.hita.ui.community")
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -808,11 +851,51 @@ private fun MorePage(service: TimetableService?) {
             MoreRow("查询资源", "查询三个校区的课程资料", Icons.Default.Search) {
                 open("com.stupidtree.hitax.ui.search.SearchActivity")
             }
+            MoreRow("提交课程资料 PR", "欢迎关注 HITCS 和 HOA，谢谢喵", Icons.Default.Edit) {
+                val service = com.stupidtree.hitax.HitaServices.resourceUi(context)
+                if (service == null) {
+                    android.widget.Toast.makeText(context, "课程资源插件未安装", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    service.openSearch(context, null, submit = true)
+                }
+            }
+            MoreRow("实用网址", "常用校内网站，点按打开", Icons.Default.Link) {
+                openPlugin("com.stupidtree.hita.ui.links")
+            }
         }
         Spacer(Modifier.height(14.dp))
         MoreGroup("设置") {
-            MoreRow("连接深圳 Web 教务", "培养方案、考试等需要 Web 会话", Icons.Default.Link) {
-                open("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
+            MoreToggleRow(
+                "课程提醒",
+                "上课前15分钟提醒",
+                Icons.Default.CalendarToday,
+                reminderEnabled,
+            ) { setReminder(it) }
+            MoreToggleRow(
+                "实时课程",
+                "上课前10分钟显示课程状态",
+                Icons.Default.PlayArrow,
+                liveEnabled,
+            ) { enabled ->
+                com.stupidtree.hitax.livecourse.LiveCourseSettings.setEnabled(context, enabled)
+                liveEnabled = enabled
+                android.widget.Toast.makeText(
+                    context,
+                    if (enabled) "实时课程已开启" else "实时课程已关闭",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+            MoreToggleRow(
+                "使用统计",
+                "匿名统计功能使用情况，帮助改进应用",
+                Icons.Default.Info,
+                usageEnabled,
+            ) { enabled ->
+                com.stupidtree.hitax.data.source.preference.UsageStatsStore.setEnabled(context, enabled)
+                usageEnabled = enabled
+            }
+            MoreRow("公告", "版本更新 · 服务与故障通知", Icons.Default.Notifications) {
+                openPlugin("com.stupidtree.hita.ui.announcement")
             }
             MoreRow("插件市场", "切换整合包、安装或停用插件", Icons.Default.Settings) {
                 context.startActivity(
@@ -879,6 +962,33 @@ private fun MoreRow(
             }
         }
         Icon(Icons.Default.ChevronRight, null, tint = shellTertiary(), modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+private fun MoreToggleRow(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
+            .padding(start = 20.dp, end = 18.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(34.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, tint = Color(0xFF3390EC), modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
