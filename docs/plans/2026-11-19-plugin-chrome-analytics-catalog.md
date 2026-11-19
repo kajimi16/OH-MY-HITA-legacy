@@ -84,11 +84,13 @@ plugin_market_view, timetable_open, today_open, more_open
 - Shell 页面、插件打开/安装、市场打开事件；
 - 市场 `downloads`/`activeUsers` 可选字段与卡片展示；
 - `CourseCatalogService.selectCourse` 与课程卡选课按钮；
+- `server/usage/` Cloudflare Worker 参考实现（`POST /api/usage`、
+  `GET /api/market/stats`）与 D1 schema；
 - 本地 `market/index.json` 加入 presets，HITA-Android refs 加入两个新插件。
 
 仍缺：
 
-- HITA 后端 `/api/usage` 实际部署与聚合；当前只实现客户端契约；
+- HITA 后端 `/api/usage` 的实际域名部署与聚合（仓库已有 Worker 参考实现，尚未上线）；
 - 深圳课程池附件、历史挂科率、教师检索、选课任务（参考
   `EASShenzhenRepository`，未移植）；
 - 线上 registry/preset 发布（本地索引已更新，远端仍需同步）；

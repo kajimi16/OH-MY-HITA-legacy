@@ -62,6 +62,9 @@ data class UiMarketPlugin(
     val activeUsers: Long? = null,
 )
 
+/** 服务端聚合的插件人数。 */
+data class MarketStat(val downloads: Long = 0, val activeUsers: Long = 0)
+
 /** 整合包里的一个插件引用；kind 为 ui/dex/builtin。 */
 data class PresetPluginRef(
     val id: String,

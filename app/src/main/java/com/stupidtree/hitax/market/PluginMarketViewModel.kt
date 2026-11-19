@@ -12,6 +12,10 @@ import com.stupidtree.hitax.plugin.PluginPrefs
 import com.stupidtree.hitax.uiplugin.InstalledUiPlugin
 import com.stupidtree.hitax.uiplugin.UiPluginManager
 import java.io.File
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import java.util.concurrent.Executors
 
 /**
@@ -68,6 +72,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
 
     /** 其它来源（非当前源）里可更新的插件数量。 */
     val pendingUpdates = MutableLiveData(0)
+    val pluginStats = MutableLiveData<Map<String, MarketStat>>(emptyMap())
     private val apkRepository = ApkPluginRepository(application)
     private val trustStore = PluginTrustStore(application)
 
@@ -151,6 +156,38 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
      * 本地只有 preset_id、没有 tabs_json。索引补上 tabs 后在这里补写一次，
      * 避免必须手动重新应用整合包才能看到新布局。
      */
+    fun refreshPluginStats(ids: List<String>) {
+        if (ids.isEmpty()) return
+        executor.execute {
+            val url = URL(
+                "https://api.hita.limpu.cn/api/market/stats?ids=" +
+                    URLEncoder.encode(ids.take(50).joinToString(","), "UTF-8")
+            )
+            runCatching {
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 8_000
+                conn.readTimeout = 10_000
+                conn.setRequestProperty("Accept", "application/json")
+                try {
+                    if (conn.responseCode !in 200..299) return@runCatching
+                    val root = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                    val stats = root.optJSONObject("stats") ?: return@runCatching
+                    val out = LinkedHashMap<String, MarketStat>()
+                    stats.keys().forEach { id ->
+                        val obj = stats.optJSONObject(id) ?: return@forEach
+                        out[id] = MarketStat(
+                            downloads = obj.optLong("downloads", 0),
+                            activeUsers = obj.optLong("activeUsers", 0),
+                        )
+                    }
+                    pluginStats.postValue(out)
+                } finally {
+                    conn.disconnect()
+                }
+            }
+        }
+    }
+
     private fun backfillLayoutIfNeeded(presets: List<MarketPreset>) {
         val activeId = PresetStateStore.activeId(ctx()) ?: return
         val tabs = PresetLayoutSync.tabsToBackfill(activeId, PresetLayoutStore.tabs(ctx()), presets) ?: return

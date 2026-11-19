@@ -33,6 +33,7 @@ class FragmentPluginMarket : BaseFragment<PluginMarketViewModel, FragmentPluginM
     private var latestUiInstalled: List<InstalledUiPlugin> = emptyList()
     private var latestUiAvailable: List<UiMarketPlugin> = emptyList()
     private var latestPresets: List<MarketPreset> = emptyList()
+    private var latestStats: Map<String, MarketStat> = emptyMap()
     private var latestApk: List<ApkPlugin> = emptyList()
     private var latestPendingUpdates = 0
     private var query: String = ""
@@ -49,7 +50,12 @@ class FragmentPluginMarket : BaseFragment<PluginMarketViewModel, FragmentPluginM
         viewModel.builtinPlugins.observe(this) { latestBuiltin = it; renderAll() }
         viewModel.items.observe(this) { latestDex = it; renderAll() }
         viewModel.uiPlugins.observe(this) { latestUiInstalled = it; renderAll() }
-        viewModel.availableUiPlugins.observe(this) { latestUiAvailable = it; renderAll() }
+        viewModel.availableUiPlugins.observe(this) {
+            latestUiAvailable = it
+            renderAll()
+            viewModel.refreshPluginStats(it.map { plugin -> plugin.id })
+        }
+        viewModel.pluginStats.observe(this) { latestStats = it; renderDiscover() }
         viewModel.presets.observe(this) { latestPresets = it; renderDiscover() }
         viewModel.activePresetId.observe(this) { renderDiscover() }
         viewModel.apkPlugins.observe(this) { latestApk = it; renderAll() }
@@ -300,8 +306,9 @@ class FragmentPluginMarket : BaseFragment<PluginMarketViewModel, FragmentPluginM
         card.meta.text = buildString {
             append("界面插件 · v").append(plugin.version)
             if (update) append(" · 可更新")
-            val downloads = plugin.downloads
-            val active = plugin.activeUsers
+            val stat = latestStats[plugin.id]
+            val downloads = stat?.downloads ?: plugin.downloads
+            val active = stat?.activeUsers ?: plugin.activeUsers
             if (downloads != null || active != null) {
                 append(" · ")
                 if (downloads != null) append("下载 ").append(downloads)
