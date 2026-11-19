@@ -18,8 +18,13 @@ def apiAbiValue = apiAbiFile.exists()
         ? (apiAbiFile.readLines().find { it.trim() && !it.startsWith("#") } ?: "")
         : ""
 
-// 发布签名从 local.properties 读取（该文件已被 .gitignore 排除）；缺失时打未签名包。
+// 发布签名优先读取用户目录下的私有属性文件；CI 仍可写入 local.properties。
+// 缺失时打未签名包。
 def keystoreProps = new Properties()
+def externalKeystoreProps = new File(System.getProperty("user.home"), ".oh-my-hita/release.properties")
+if (externalKeystoreProps.exists()) {
+    externalKeystoreProps.withInputStream { keystoreProps.load(it) }
+}
 def keystorePropsFile = rootProject.file("local.properties")
 if (keystorePropsFile.exists()) {
     keystorePropsFile.withInputStream { keystoreProps.load(it) }
