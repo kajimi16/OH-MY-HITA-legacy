@@ -30,6 +30,10 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
         val update: Boolean = false,
     )
 
+    data class SwitchProgress(val percent: Int, val message: String)
+
+    data class PresetSwitchTarget(val presetId: String, val shell: String?)
+
     private val installer = PluginInstaller(application, (application as HApplication).pluginHost)
     private val executor = Executors.newSingleThreadExecutor()
     private val gson = Gson()
@@ -63,6 +67,16 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
 
     /** 当前生效的整合包 id；切换成功后更新。 */
     val activePresetId = MutableLiveData<String?>(PresetStateStore.activeId(application))
+
+    /** 0–100 的切换进度；null 表示没有正在进行的切换。 */
+    val applyProgress = MutableLiveData<SwitchProgress?>(null)
+
+    /** 一次性成功事件：市场据此启动目标 UI 并关闭自己。 */
+    val presetSwitch = MutableLiveData<PresetSwitchTarget?>(null)
+
+    fun consumePresetSwitch() {
+        presetSwitch.value = null
+    }
 
     /** 索引是否已完成一次读取（成功或失败），用于区分“还在加载”和“没有预设”。 */
     val presetsLoaded = MutableLiveData(false)
@@ -427,13 +441,19 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
      */
     fun applyPreset(preset: MarketPreset) {
         executor.execute {
+            fun fail(text: String) {
+                applyProgress.postValue(null)
+                message.postValue(text)
+            }
+            val switchStartedAt = android.os.SystemClock.elapsedRealtime()
+            applyProgress.postValue(SwitchProgress(5, "正在准备切换…"))
             val minHost = preset.minHostApi ?: 1
             if (minHost > HITA_API_VERSION) {
-                message.postValue("整合包需要宿主 API $minHost，当前 $HITA_API_VERSION")
+                fail("整合包需要宿主 API $minHost，当前 $HITA_API_VERSION")
                 return@execute
             }
             if (preset.refs().isEmpty()) {
-                message.postValue("整合包没有插件清单，已取消")
+                fail("整合包没有插件清单，已取消")
                 return@execute
             }
             val invalidKinds = preset.refs()
@@ -441,9 +461,10 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 .filterNot { it in setOf("ui", "dex", "builtin") }
                 .distinct()
             if (invalidKinds.isNotEmpty()) {
-                message.postValue("整合包含未知插件类型：${invalidKinds.joinToString()}")
+                fail("整合包含未知插件类型：${invalidKinds.joinToString()}")
                 return@execute
             }
+            applyProgress.postValue(SwitchProgress(15, "正在计算组合差异…"))
             // 在单线程执行器内读取，连续点击时第二次能看到第一次刚写入的 active preset。
             val activeId = PresetStateStore.activeId(ctx())
             val previous = previousPresetFor(
@@ -496,7 +517,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
             )
             val requiredMissing = plan.blockingRequiredMissing()
             if (requiredMissing.isNotEmpty()) {
-                message.postValue(
+                fail(
                     "整合包缺少必选插件：" + requiredMissing.joinToString {
                         "${it.id}（${it.kind.name.lowercase()}）"
                     },
@@ -505,7 +526,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
             }
             val requiredDisabled = plan.blockingRequiredDisabled()
             if (requiredDisabled.isNotEmpty()) {
-                message.postValue(
+                fail(
                     "整合包必选插件被停用：" + requiredDisabled.joinToString {
                         "${it.id}（${it.source.name.lowercase()}）"
                     },
@@ -536,6 +557,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 ),
             )
             CompositionStore.record(ctx(), plan, state)
+            applyProgress.postValue(SwitchProgress(35, "正在安装/启用目标插件…"))
 
             // 准备阶段只下载/校验/落 staging；任何必选失败都在 reconcile 之前中止。
             val artifacts = mutableMapOf<CompositionTarget, PreparedArtifact>()
@@ -666,6 +688,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                     CompositionKind.BUILTIN -> builtin.setEnabled(id, false).map { true }
                 }
             }
+            applyProgress.postValue(SwitchProgress(55, "正在停用旧组合并启用新组合…"))
             val report = CompositionReconciler.executePrepared(
                 plan = plan.forPresetApplication(),
                 state = state,
@@ -673,11 +696,13 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 executor = compositionExecutor,
             )
             CompositionStore.recordResult(ctx(), plan, state, report)
+            applyProgress.postValue(SwitchProgress(85, "正在保存组合状态…"))
             val installed = report.installed
             val enabled = report.enabled
             val skipped = report.skipped
             val disabledOld = report.disabled
-            val reloadNeeded = report.reloadNeeded || previous?.shell != preset.shell
+            val targetShell = PresetStateStore.shellForPreset(preset.id, preset.shell)
+            val reloadNeeded = report.reloadNeeded || previous?.shell != targetShell
             val failures = report.failures
             val optionalFailures = report.optionalFailures
             if (report.canActivate) {
@@ -685,16 +710,23 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 val committed = PresetStateStore.saveUi(
                     ctx(),
                     preset.id,
-                    PresetStateStore.shellForPreset(preset.id, preset.shell),
+                    targetShell,
                     preset.tabs,
                 )
                 if (!committed) {
-                    message.postValue("切换失败：无法保存整合包状态，已保留旧组合")
+                    fail("切换失败：无法保存整合包状态，已保留旧组合")
                     refresh()
                     return@execute
                 }
                 CompositionStore.savePreset(ctx(), preset)
                 activePresetId.postValue(preset.id)
+                // 切换通常很快；至少让用户看到进度窗口，避免一闪而过。
+                val remain = 650 - (android.os.SystemClock.elapsedRealtime() - switchStartedAt)
+                if (remain > 0) Thread.sleep(remain)
+                applyProgress.postValue(SwitchProgress(100, "正在切换界面…"))
+                presetSwitch.postValue(PresetSwitchTarget(preset.id, targetShell))
+            } else {
+                applyProgress.postValue(null)
             }
 
             val summary = buildString {
@@ -708,7 +740,7 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
             }
             val allFailures = report.allFailures
             message.postValue(if (allFailures.isEmpty()) summary else summary + "；" + allFailures.joinToString("；"))
-            if (reloadNeeded) reloadUi.postValue(true)
+            if (reloadNeeded && !report.canActivate) reloadUi.postValue(true)
             refresh()
         }
     }

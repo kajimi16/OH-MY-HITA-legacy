@@ -38,6 +38,9 @@ class FragmentPluginMarket : BaseFragment<PluginMarketViewModel, FragmentPluginM
     private var latestPendingUpdates = 0
     private var query: String = ""
     private var selectedTab = 0
+    private var switchDialog: AlertDialog? = null
+    private var switchProgressBar: android.widget.ProgressBar? = null
+    private var switchMessageView: android.widget.TextView? = null
     private fun uiPrefs() =
         requireContext().getSharedPreferences("market_ui", android.content.Context.MODE_PRIVATE)
 
@@ -89,6 +92,30 @@ class FragmentPluginMarket : BaseFragment<PluginMarketViewModel, FragmentPluginM
                 requireActivity().recreate()
             }
         }
+        viewModel.applyProgress.observe(this) { progress ->
+            if (progress == null) {
+                switchDialog?.dismiss()
+                switchDialog = null
+            } else {
+                showSwitchProgress(progress)
+            }
+        }
+        viewModel.presetSwitch.observe(this) { target ->
+            target ?: return@observe
+            viewModel.consumePresetSwitch()
+            switchDialog?.dismiss()
+            switchDialog = null
+            val context = requireContext()
+            val intent = if (!target.shell.isNullOrBlank()) {
+                android.content.Intent(context, com.stupidtree.hitax.shell.PresetShellActivity::class.java)
+                    .putExtra(com.stupidtree.hitax.shell.PresetShellActivity.EXTRA_SHELL_ID, target.shell)
+            } else {
+                android.content.Intent(context, com.stupidtree.hitax.ui.main.MainActivity::class.java)
+            }
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            requireActivity().finish()
+        }
         viewModel.status.observe(this) { text ->
             binding?.status?.text = text
             binding?.status?.visibility = if (text == null) View.GONE else View.VISIBLE
@@ -106,6 +133,43 @@ class FragmentPluginMarket : BaseFragment<PluginMarketViewModel, FragmentPluginM
         super.onResume()
         viewModel.syncActivePreset()
         viewModel.refresh()
+    }
+
+    private fun showSwitchProgress(progress: PluginMarketViewModel.SwitchProgress) {
+        if (switchDialog == null) {
+            val density = resources.displayMetrics.density
+            val container = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding((24 * density).toInt(), (8 * density).toInt(), (24 * density).toInt(), 0)
+            }
+            val bar = android.widget.ProgressBar(
+                requireContext(), null, android.R.attr.progressBarStyleHorizontal,
+            ).apply {
+                max = 100
+                isIndeterminate = false
+            }
+            val label = android.widget.TextView(requireContext()).apply {
+                setPadding(0, (8 * density).toInt(), 0, 0)
+            }
+            container.addView(bar, LinearLayout.LayoutParams.MATCH_PARENT, (8 * density).toInt())
+            container.addView(label)
+            switchProgressBar = bar
+            switchMessageView = label
+            switchDialog = AlertDialog.Builder(requireContext())
+                .setTitle("切换整合包")
+                .setView(container)
+                .setCancelable(false)
+                .create()
+                .also { it.show() }
+        }
+        switchProgressBar?.progress = progress.percent
+        switchMessageView?.text = progress.message
+    }
+
+    override fun onDestroyView() {
+        switchDialog?.dismiss()
+        switchDialog = null
+        super.onDestroyView()
     }
 
     private fun showTab(tab: Int) {

@@ -2,7 +2,7 @@
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="128dp"
     android:layout_margin="6dp"
     app:cardBackgroundColor="?attr/backgroundColorSecond"
     app:cardCornerRadius="?attr/designCornerRadius"
@@ -25,7 +25,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
-                android:maxLines="2"
+                android:maxLines="1"
                 android:textColor="?attr/textColorPrimary"
                 android:textSize="15sp"
                 android:textStyle="bold" />
@@ -35,6 +35,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:maxLines="2"
                 android:textColor="?attr/textColorSecondary"
                 android:textSize="12sp" />
         </LinearLayout>
