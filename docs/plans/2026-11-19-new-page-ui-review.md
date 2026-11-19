@@ -2,7 +2,8 @@
 
 > 状态：审查完成；后续已修复插件 TopAppBar、更多缺失入口、时间表课表设置、
 > 课程池基础能力；HITA-Android 主页面像素级残差（今日 hero、资讯/时间表）仍未全量复核。
-> 原文保留为审查基线。  
+> 原文保留为审查基线。2026-11-19 复审见 `docs/plans/2026-11-19-pixel-audit.md`：
+> 抽屉已补尺寸/像素证据；成绩页 TopAppBar 已补，但整体差异 9.941%，仍未通过。  
 > 基准：HITA-L ↔ HITA_L 1.5.3；HITA-Android ↔ HITA_Android 3.1.2  
 > 已有证据：`docs/porting-status.md`、`docs/evidence/7.1/2026-11-18/report.md`
 

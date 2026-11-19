@@ -369,7 +369,7 @@ private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
                     .clickable { onClose() },
             )
             Surface(
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(300.dp),
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(260.dp),
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 12.dp,
             ) {
@@ -381,22 +381,15 @@ private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
                     Column(
                         Modifier.fillMaxWidth()
                             .clickable { launch("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity") }
-                            .padding(top = 28.dp, bottom = 28.dp),
+                            .padding(top = 45.dp, bottom = 28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Box(
-                            Modifier.size(96.dp).clip(CircleShape)
-                                .background(Color(0xFF2F80ED)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            androidx.compose.material3.Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(56.dp),
-                            )
-                        }
-                        Spacer(Modifier.height(18.dp))
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(R.drawable.place_holder_avatar),
+                            contentDescription = null,
+                            modifier = Modifier.size(72.dp).clip(CircleShape),
+                        )
+                        Spacer(Modifier.height(16.dp))
                         Text(
                             userName ?: "点击进行教务登录",
                             fontSize = 22.sp,
@@ -409,7 +402,7 @@ private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
                             fontSize = 16.sp,
                         )
                     }
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(25.dp))
                     DrawerRow("课表管理", R.drawable.ic_menu_settings) {
                         com.stupidtree.hitax.utils.ActivityUtils.startTimetableManager(context)
                         onClose()
@@ -436,17 +429,17 @@ private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
 @Composable
 private fun DrawerRow(title: String, iconRes: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 18.dp),
+        Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         androidx.compose.material3.Icon(
             painter = painterResource(iconRes),
             contentDescription = null,
             tint = Color(0xFF2563EB),
-            modifier = Modifier.size(26.dp),
+            modifier = Modifier.size(24.dp),
         )
-        Text(title, fontSize = 16.sp, modifier = Modifier.padding(start = 22.dp))
+        Text(title, fontSize = 14.sp, modifier = Modifier.padding(start = 16.dp))
     }
 }
 
