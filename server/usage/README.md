@@ -40,3 +40,28 @@ HTTPS 服务器即可。
 - 自建索引中的插件 URL 必须是你自己可访问的 HTTPS 地址，并更新 sha256；
 - 不要把自己的服务伪装成 `api.hita.limpu.cn`，除非你确实拥有该域名/授权；
 - 本仓库的公告邮箱、更新地址、预设来源仍是上游项目值，发布自己的分支时应一并替换。
+
+## 方案 B：直接部署到自己的 Linux 服务器
+
+本目录的 `python_server.py` 是无第三方依赖的实现，适合已有 VPS/自有服务器。
+
+```bash
+# 服务器上
+install -d /opt/ohmyhita-usage /var/lib/ohmyhita-usage
+install -m755 server/usage/python_server.py /opt/ohmyhita-usage/
+install -m644 server/usage/systemd/ohmyhita-usage.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now ohmyhita-usage
+sqlite3 /var/lib/ohmyhita-usage/usage.db < server/usage/schema.sql
+```
+
+如果已有 Caddy/Nginx，把 `server/usage/caddy.snippet` 中的两条 `handle` 放到对应站点
+（例如 `ani2-ext.kajimi.cc`）的 `reverse_proxy` 之前，然后 `caddy validate`/`caddy reload`。
+
+验证：
+
+```bash
+curl https://your-domain/api/usage -X POST -H 'content-type: application/json' \
+  -d '{"events":[{"install_id":"test","event":"app_open","timestamp":1700000000000}]}'
+curl 'https://your-domain/api/market/stats?ids=com.stupidtree.hita.ui.community'
+```
