@@ -53,8 +53,7 @@ class GroupUiPlugin : ComposeUiPlugin {
                     var merged by remember { mutableStateOf(false) }
 
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
-                        Text("课表组合", style = MaterialTheme.typography.h5)
-                        Text("勾选课表组成组合，组内切换或合并显示。", style = MaterialTheme.typography.caption)
+                                                Text("勾选课表组成组合，组内切换或合并显示。", style = MaterialTheme.typography.caption)
                         LazyColumn(Modifier.padding(top = 8.dp)) {
                             items(timetables) { timetable ->
                                 Row(Modifier.fillMaxWidth().clickable {

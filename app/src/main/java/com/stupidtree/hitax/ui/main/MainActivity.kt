@@ -120,6 +120,30 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 .isAppearanceLightNavigationBars = false
         }
         setSupportActionBar(binding.toolbar)
+        maybeAskUsageConsent()
+    }
+
+    private fun maybeAskUsageConsent() {
+        if (com.stupidtree.hitax.data.source.preference.UsageStatsStore.hasAsked(this)) return
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("匿名使用统计")
+            .setMessage(
+                "是否允许上报匿名安装 ID、版本、事件名、页面和插件 ID？" +
+                    "不会上报账号、学号、姓名、课程内容或自由文本。默认关闭，可随时在更多页关闭或清除。"
+            )
+            .setPositiveButton("允许匿名统计") { _, _ ->
+                com.stupidtree.hitax.data.source.preference.UsageStatsStore.setEnabled(this, true)
+                com.stupidtree.hitax.analytics.UsageAnalytics.record(
+                    this, com.stupidtree.hitax.analytics.UsageEventAllowlist.APP_OPEN
+                )
+            }
+            .setNegativeButton("暂不") { _, _ ->
+                com.stupidtree.hitax.data.source.preference.UsageStatsStore.markAsked(this)
+            }
+            .setOnCancelListener {
+                com.stupidtree.hitax.data.source.preference.UsageStatsStore.markAsked(this)
+            }
+            .show()
     }
 
 
@@ -313,6 +337,11 @@ class MainActivity : BaseActivity<MainViewModel, ActivityMainBinding>(),
                 if (hitaLMode) binding.navView.itemActiveIndex = position
                 else binding.navViewExtended.select(position)
                 showHeaderFor(position)
+                com.stupidtree.hitax.analytics.UsageAnalytics.record(
+                    this@MainActivity,
+                    com.stupidtree.hitax.analytics.UsageEventAllowlist.SCREEN_VIEW,
+                    screen = listOf("timeline", "timetable", "navigation").getOrNull(position),
+                )
             }
 
             override fun onPageScrollStateChanged(state: Int) {}

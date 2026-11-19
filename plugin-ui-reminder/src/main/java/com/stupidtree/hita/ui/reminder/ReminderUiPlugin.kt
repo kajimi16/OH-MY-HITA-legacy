@@ -137,8 +137,7 @@ class ReminderUiPlugin : ComposeUiPlugin, WidgetContentProvider, BackgroundTask 
                         modifier = Modifier.fillMaxSize().padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        Text("上课提醒", style = MaterialTheme.typography.h5)
-                        Text(
+                                                Text(
                             "由宿主统一调度；关闭或卸载插件不会删除已安排的提醒，请先关闭开关。",
                             style = MaterialTheme.typography.body2,
                         )

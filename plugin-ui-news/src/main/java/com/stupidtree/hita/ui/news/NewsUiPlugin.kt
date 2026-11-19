@@ -87,8 +87,6 @@ class NewsUiPlugin : ComposeUiPlugin {
                     } else {
                         Column(Modifier.fillMaxSize().padding(16.dp)) {
                             Row {
-                                Text("HOA 资讯", style = MaterialTheme.typography.h5,
-                                    modifier = Modifier.weight(1f))
                                 Button(onClick = { reload++ }) { Text("刷新") }
                             }
                             Text("来源：hoa.moe/blog", style = MaterialTheme.typography.caption)

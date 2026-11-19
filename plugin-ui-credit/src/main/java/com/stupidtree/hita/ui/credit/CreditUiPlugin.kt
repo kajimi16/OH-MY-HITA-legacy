@@ -37,8 +37,7 @@ class CreditUiPlugin : ComposeUiPlugin {
                     val timetables by (service?.getTimetables() ?: androidx.lifecycle.MutableLiveData(emptyList()))
                         .observeAsState(emptyList())
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
-                        Text("学分统计", style = MaterialTheme.typography.h5)
-                        Text("按课表统计已导入课程的学分，不代表培养方案完成度。",
+                                                Text("按课表统计已导入课程的学分，不代表培养方案完成度。",
                             style = MaterialTheme.typography.caption)
                         if (timetables.isEmpty()) {
                             Text("暂无课表", modifier = Modifier.padding(top = 24.dp))

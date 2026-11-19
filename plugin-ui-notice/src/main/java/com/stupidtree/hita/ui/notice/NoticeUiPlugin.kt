@@ -64,8 +64,6 @@ class NoticeUiPlugin : ComposeUiPlugin {
 
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
                         Row {
-                            Text("校园通知", style = MaterialTheme.typography.h5,
-                                modifier = Modifier.padding(end = 8.dp))
                             Button(onClick = {
                                 cookie = readCookie()
                                 if (cookie.isBlank()) error = "尚未登录"

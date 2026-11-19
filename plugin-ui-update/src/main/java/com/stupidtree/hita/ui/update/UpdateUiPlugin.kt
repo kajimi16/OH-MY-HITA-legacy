@@ -48,8 +48,7 @@ class UpdateUiPlugin : ComposeUiPlugin {
                             .onFailure { error = it.message ?: "检查失败" }
                     }
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
-                        Text("应用更新", style = MaterialTheme.typography.h5)
-                        Text("当前版本：$current", style = MaterialTheme.typography.body2)
+                                                Text("当前版本：$current", style = MaterialTheme.typography.body2)
                         when {
                             error != null -> Text("检查失败：$error")
                             latest == null -> Text("检查中…")

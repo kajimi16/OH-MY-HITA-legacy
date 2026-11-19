@@ -78,10 +78,12 @@ plugin_market_view, timetable_open, today_open, more_open
 已完成：
 
 - `PluginUiActivity` 统一 Toolbar（返回、插件名）；公告/深圳/网址移除自绘标题；
+  其余运行时插件（AI/对比/学分/组合/作业/直播/资讯/通知/提醒/分享/更新）也移除了重复标题；
 - `UsageStatsStore` 默认关闭、首次询问；
 - Room `usage_events.db` + `UsageUploadWorker`（`/api/usage` 批量上传）；
 - 事件白名单、匿名 install id、清除队列/install id；
 - Shell 页面、插件打开/安装、市场打开事件；
+- HITA-L `MainActivity` 同样首次询问并记录 timeline/timetable/navigation 页面事件；
 - 市场 `downloads`/`activeUsers` 可选字段与卡片展示；
 - `CourseCatalogService.selectCourse` 与课程卡选课按钮；
 - 课程卡“详情”弹窗：课程简介/中英文教学大纲附件名称（`EASource` 现有 Web 会话）；
@@ -97,4 +99,4 @@ plugin_market_view, timetable_open, today_open, more_open
 - 深圳课程池历史挂科率/教师检索/选课任务（参考工程注明历史挂科率受教务隐私限制，
   选课任务需完整 `EASShenzhenRepository` 移植）；
 - 线上 registry/preset 发布（本地索引已更新，远端仍需同步）；
-- HITA-L 原生页面的统计询问与插件 chrome 未覆盖（本轮针对 HITA-Android Shell/PluginUiActivity）。
+

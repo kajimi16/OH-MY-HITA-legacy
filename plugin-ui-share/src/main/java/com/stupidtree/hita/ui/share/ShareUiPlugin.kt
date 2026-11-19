@@ -88,8 +88,7 @@ class ShareUiPlugin : ComposeUiPlugin {
                     }
 
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
-                        Text("课表分享", style = MaterialTheme.typography.h5)
-                        Text("HITA1 口令可导入/导出；ICS 仍可通过系统分享。",
+                                                Text("HITA1 口令可导入/导出；ICS 仍可通过系统分享。",
                             style = MaterialTheme.typography.caption)
 
                         Column {

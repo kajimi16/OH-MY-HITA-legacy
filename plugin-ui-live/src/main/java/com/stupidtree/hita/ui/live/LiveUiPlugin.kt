@@ -45,8 +45,7 @@ class LiveUiPlugin : ComposeUiPlugin {
                     var status by remember { mutableStateOf("") }
                     val events = remember { runCatching { timetable?.getTodayEventsSync().orEmpty() }.getOrDefault(emptyList()) }
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
-                        Text("直播课", style = MaterialTheme.typography.h5)
-                        Text("扫描今日课程中的线上链接；课前由宿主前台服务守护并可打开直播。",
+                                                Text("扫描今日课程中的线上链接；课前由宿主前台服务守护并可打开直播。",
                             style = MaterialTheme.typography.caption)
 
                         if (events.isEmpty()) {

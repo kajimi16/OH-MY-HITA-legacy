@@ -53,8 +53,7 @@ private fun HomeworkScreen(store: HomeworkStore) {
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        Text("作业", style = MaterialTheme.typography.h5)
-        Text(
+                Text(
             "本地保存，不上传；未完成的作业按计划日期排序。",
             style = MaterialTheme.typography.caption,
             modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),

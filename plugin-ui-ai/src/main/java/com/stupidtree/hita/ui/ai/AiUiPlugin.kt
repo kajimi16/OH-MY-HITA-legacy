@@ -85,8 +85,7 @@ class AiUiPlugin : ComposeUiPlugin {
                     }
 
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
-                        Text("AI 助手", style = MaterialTheme.typography.h5)
-                        Text("使用你自己的 OpenAI 兼容 API Key；对话仅保存在当前页面。",
+                                                Text("使用你自己的 OpenAI 兼容 API Key；对话仅保存在当前页面。",
                             style = MaterialTheme.typography.caption)
 
                         OutlinedTextField(

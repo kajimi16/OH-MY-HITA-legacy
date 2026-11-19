@@ -47,8 +47,7 @@ class CompareUiPlugin : ComposeUiPlugin {
                         .observeAsState(emptyList())
                     var selected by remember { mutableStateOf<List<String>>(emptyList()) }
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
-                        Text("课表对比", style = MaterialTheme.typography.h5)
-                        Text("选择两份课表，计算时间重叠的课程。", style = MaterialTheme.typography.caption)
+                                                Text("选择两份课表，计算时间重叠的课程。", style = MaterialTheme.typography.caption)
                         LazyColumn(Modifier.padding(top = 8.dp)) {
                             items(timetables) { timetable ->
                                 Row(Modifier.fillMaxWidth().clickable {
