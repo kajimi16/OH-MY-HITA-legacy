@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.LiveData
 import com.stupidtree.component.data.DataState
 import com.stupidtree.hita.api.CourseCatalogService
+import com.stupidtree.hita.api.CatalogAttachment
 import com.stupidtree.hitax.data.model.eas.TermItem
 import com.stupidtree.hitax.data.model.timetable.TermSubject
 import com.stupidtree.hitax.data.repository.EASRepository
@@ -27,4 +28,11 @@ class CourseCatalogServiceImpl(private val application: Application) : CourseCat
         poolCode: String,
     ): LiveData<DataState<String>> =
         repo.selectCourse(term, course.key.orEmpty(), poolCode)
+
+    override fun attachments(course: TermSubject): LiveData<DataState<List<CatalogAttachment>>> =
+        repo.getCourseAttachments(
+            course.externalCourseId.orEmpty(),
+            course.taskNumber.orEmpty(),
+        )
+
 }

@@ -35,6 +35,9 @@ class TermSubject{
             : String? = null
     var key //适配教务的课程标识
             : String? = null
+    @Ignore var externalCourseId: String? = null
+    @Ignore var taskNumber: String? = null
+    @Ignore var selectionRequestId: String? = null
     @Ignore
     var teacher: String? = null
     var createdAt //创建时间

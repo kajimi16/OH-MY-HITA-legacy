@@ -1435,6 +1435,9 @@ class EASource internal constructor() : EASService {
                         s.school = item.optString("kkyxmc")
                         s.credit = item.optString("xf").toFloatOrNull() ?: 0f
                         s.key = item.optString("id")  // p_id 用于选课
+                        s.externalCourseId = optStringFirst(item, listOf("kcid", "KCID"))
+                        s.taskNumber = optStringFirst(item, listOf("rwh", "RWH"))
+                        s.selectionRequestId = item.optString("id")
                         s.field = optStringFirst(item, listOf("kclbmc", "KCLBMC"))
                         result.add(s)
                     }
@@ -1447,4 +1450,64 @@ class EASource internal constructor() : EASService {
         }.start()
         return res
     }
+    /** 课程详情附件（课程简介/中英文教学大纲）。 */
+    fun getCourseAttachments(
+        token: EASToken,
+        courseId: String,
+        taskNumber: String,
+    ): LiveData<DataState<List<com.stupidtree.hita.api.CatalogAttachment>>> {
+        val result = MutableLiveData<DataState<List<com.stupidtree.hita.api.CatalogAttachment>>>()
+        Thread {
+            if (courseId.isBlank() || taskNumber.isBlank()) {
+                result.postValue(DataState(DataState.STATE.FETCH_FAILED, "课程缺少详情标识"))
+                return@Thread
+            }
+            try {
+                val response = jwFormPost(
+                    token,
+                    "/kck/kcxxwh/xsckViewByxk?sf_request_type=ajax",
+                    mapOf("kcid" to courseId, "kcsqid" to "", "rwh" to taskNumber),
+                    "/Xsxk/query/1",
+                )
+                if (response.statusCode() == 401) {
+                    result.postValue(DataState(DataState.STATE.NOT_LOGGED_IN, "深圳 Web 会话已失效"))
+                    return@Thread
+                }
+                val parsed = runCatching { JSONObject(response.body()) }.getOrNull()
+                val content = parsed?.optJSONObject("content")
+                if (response.statusCode() !in 200..299 || content == null) {
+                    result.postValue(DataState(DataState.STATE.FETCH_FAILED, "课程附件解析失败"))
+                    return@Thread
+                }
+                val course = content.optJSONObject("kcxxbgbEntity") ?: JSONObject()
+                val syllabus = content.optJSONObject("kcdgbentity") ?: JSONObject()
+                fun first(obj: JSONObject, vararg keys: String): String =
+                    keys.firstNotNullOfOrNull { k -> obj.optString(k).takeIf { it.isNotBlank() } }.orEmpty()
+                val out = mutableListOf<com.stupidtree.hita.api.CatalogAttachment>()
+                val desc = first(course, "kcjjfname")
+                if (desc.isNotBlank()) out += com.stupidtree.hita.api.CatalogAttachment(
+                    name = desc,
+                    path = first(course, "kcjjsname"),
+                    kind = "课程简介",
+                )
+                val zh = first(syllabus, "kczwdgwjm")
+                if (zh.isNotBlank()) out += com.stupidtree.hita.api.CatalogAttachment(
+                    name = zh,
+                    path = first(syllabus, "kczwdgurl"),
+                    kind = "中文教学大纲",
+                )
+                val en = first(syllabus, "kcywdgwjm")
+                if (en.isNotBlank()) out += com.stupidtree.hita.api.CatalogAttachment(
+                    name = en,
+                    path = first(syllabus, "kcywdgurl"),
+                    kind = "英文教学大纲",
+                )
+                result.postValue(DataState(out, DataState.STATE.SUCCESS))
+            } catch (e: Exception) {
+                result.postValue(DataState(DataState.STATE.FETCH_FAILED, e.message))
+            }
+        }.start()
+        return result
+    }
+
 }

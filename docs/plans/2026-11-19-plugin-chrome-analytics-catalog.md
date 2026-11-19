@@ -84,6 +84,8 @@ plugin_market_view, timetable_open, today_open, more_open
 - Shell 页面、插件打开/安装、市场打开事件；
 - 市场 `downloads`/`activeUsers` 可选字段与卡片展示；
 - `CourseCatalogService.selectCourse` 与课程卡选课按钮；
+- 课程卡“详情”弹窗：课程简介/中英文教学大纲附件名称（`EASource` 现有 Web 会话）；
+- `ShenzhenCourseAttachment` 所需字段映射到 `TermSubject.externalCourseId/taskNumber`；
 - `server/usage/` Cloudflare Worker 参考实现（`POST /api/usage`、
   `GET /api/market/stats`）与 D1 schema；
 - 本地 `market/index.json` 加入 presets，HITA-Android refs 加入两个新插件。
@@ -91,7 +93,7 @@ plugin_market_view, timetable_open, today_open, more_open
 仍缺：
 
 - HITA 后端 `/api/usage` 的实际域名部署与聚合（仓库已有 Worker 参考实现，尚未上线）；
-- 深圳课程池附件、历史挂科率、教师检索、选课任务（参考
-  `EASShenzhenRepository`，未移植）；
+- 深圳课程池历史挂科率/教师检索/选课任务（参考工程注明历史挂科率受教务隐私限制，
+  选课任务需完整 `EASShenzhenRepository` 移植）；
 - 线上 registry/preset 发布（本地索引已更新，远端仍需同步）；
 - HITA-L 原生页面的统计询问与插件 chrome 未覆盖（本轮针对 HITA-Android Shell/PluginUiActivity）。

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.Button
 import androidx.compose.material.Card
 import androidx.compose.material.CircularProgressIndicator
@@ -60,6 +61,8 @@ class CommunityUiPlugin : ComposeUiPlugin {
                     var page by remember { mutableIntStateOf(1) }
                     var selectedTerm by remember { mutableStateOf<TermItem?>(null) }
                     var status by remember { mutableStateOf("") }
+                    var detailCourse by remember { mutableStateOf<TermSubject?>(null) }
+                    var detailText by remember { mutableStateOf("") }
                     val termsLive = remember(service, reload) { service?.terms() }
                     val termsState = termsLive?.observeAsState()?.value
                     LaunchedEffect(termsState, reload) {
@@ -134,7 +137,24 @@ class CommunityUiPlugin : ComposeUiPlugin {
                                     else -> {
                                         LazyColumn(Modifier.weight(1f)) {
                                             items(coursesState?.data.orEmpty()) { course ->
-                                                CatalogRow(course) {
+                                                CatalogRow(course, onDetails = {
+                                                    detailCourse = course
+                                                    detailText = "正在加载课程详情…"
+                                                    val live = service.attachments(course)
+                                                    val observer = object : Observer<DataState<List<com.stupidtree.hita.api.CatalogAttachment>>> {
+                                                        override fun onChanged(value: DataState<List<com.stupidtree.hita.api.CatalogAttachment>>) {
+                                                            detailText = if (value.state == DataState.STATE.SUCCESS) {
+                                                                value.data.orEmpty().joinToString("\n\n") { item ->
+                                                                    "${item.kind}：${item.name}"
+                                                                }.ifBlank { "暂无附件" }
+                                                            } else {
+                                                                "详情加载失败：${value.message ?: value.state}"
+                                                            }
+                                                            live.removeObserver(this)
+                                                        }
+                                                    }
+                                                    live.observeForever(observer)
+                                                }) {
                                                     val term = selectedTerm ?: return@CatalogRow
                                                     val live = service.selectCourse(term, course)
                                                     val observer = object : Observer<DataState<String>> {
@@ -170,6 +190,16 @@ class CommunityUiPlugin : ComposeUiPlugin {
                             }
                         }
                     }
+                    detailCourse?.let { course ->
+                        AlertDialog(
+                            onDismissRequest = { detailCourse = null },
+                            title = { Text(course.name) },
+                            text = { Text(detailText) },
+                            confirmButton = {
+                                TextButton(onClick = { detailCourse = null }) { Text("关闭") }
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -177,7 +207,11 @@ class CommunityUiPlugin : ComposeUiPlugin {
 }
 
 @Composable
-private fun CatalogRow(course: TermSubject, onSelect: () -> Unit) {
+private fun CatalogRow(
+    course: TermSubject,
+    onDetails: () -> Unit,
+    onSelect: () -> Unit,
+) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -194,6 +228,7 @@ private fun CatalogRow(course: TermSubject, onSelect: () -> Unit) {
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
+            TextButton(onClick = onDetails) { Text("详情") }
             TextButton(onClick = onSelect) { Text("选课") }
         }
     }

@@ -542,6 +542,14 @@ class EASRepository internal constructor(application: Application) {
         return (easService as EASource).selectCourse(token, term, courseId, poolCode)
     }
 
+    fun getCourseAttachments(
+        courseId: String,
+        taskNumber: String,
+    ): LiveData<DataState<List<com.stupidtree.hita.api.CatalogAttachment>>> {
+        val token = easPreferenceSource.getEasToken()
+        return (easService as EASource).getCourseAttachments(token, courseId, taskNumber)
+    }
+
 
     companion object {
         @Volatile

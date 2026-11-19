@@ -9,6 +9,12 @@ import com.stupidtree.hitax.data.model.timetable.TermSubject
  * 深圳教务课程池（API 7，增量契约）。
  * 只读课程列表；选课/附件/历史挂科率仍由后续版本扩展。
  */
+data class CatalogAttachment(
+    val name: String,
+    val path: String,
+    val kind: String,
+)
+
 interface CourseCatalogService {
     fun terms(): LiveData<DataState<List<TermItem>>>
 
@@ -25,6 +31,8 @@ interface CourseCatalogService {
         course: TermSubject,
         poolCode: String = "bx-b-b",
     ): LiveData<DataState<String>>
+
+    fun attachments(course: TermSubject): LiveData<DataState<List<CatalogAttachment>>>
 
     companion object {
         val KEY = ServiceKey<CourseCatalogService>("hita.eas.courseCatalog")
