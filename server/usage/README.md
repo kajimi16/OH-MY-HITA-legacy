@@ -3,7 +3,7 @@
 客户端实现：
 
 - `UsageAnalytics`：Room 队列；
-- `UsageUploadWorker`：`POST https://api.hita.limpu.cn/api/usage`；
+- `UsageUploadWorker`：`POST https://hita.kajimi.cc/api/usage`；
 - `UsageStatsStore`：默认关闭、首次询问、可清除；
 - 市场卡片支持索引/接口返回的 `downloads`、`activeUsers`。
 

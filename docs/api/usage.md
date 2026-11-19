@@ -1,5 +1,12 @@
 # /api/usage 与插件人数统计契约
 
+## 官方部署
+
+```text
+https://hita.kajimi.cc/api/usage
+https://hita.kajimi.cc/api/market/stats
+```
+
 ## POST /api/usage
 
 请求：
