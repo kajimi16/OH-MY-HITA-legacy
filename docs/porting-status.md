@@ -5,7 +5,7 @@
 ## 分支
 
 - 分支：`feat/hita-android-shell`
-- 基线：已合并 `origin/master` / `v0.6.9`；已发布 `0.7.0`
+- 基线：已合并 `origin/master` / `v0.6.9`；已发布 `0.7.0`、`0.7.1`、`0.7.2`
 - HITA_Android Shell 已由预设映射激活，固定 6 tab；视觉仍是预览版
 
 ## HITA-L 1.5.3
