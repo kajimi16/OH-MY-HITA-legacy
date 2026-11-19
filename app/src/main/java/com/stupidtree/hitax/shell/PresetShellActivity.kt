@@ -598,7 +598,15 @@ private fun TimetablePage(service: TimetableService?) {
                                         containerColor = if (item.color != 0) Color(item.color) else Color(0xFFC24C8C),
                                     ),
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)
-                                        .offset(y = top.dp).height(height.dp),
+                                        .offset(y = top.dp).height(height.dp)
+                                        .clickable {
+                                            val activity = context as? androidx.fragment.app.FragmentActivity
+                                            val uiService = (context.applicationContext as? HApplication)
+                                                ?.pluginHost?.service(com.stupidtree.hita.api.TimetableUiService.KEY)
+                                            if (activity != null && uiService != null) {
+                                                uiService.showEventInfo(activity, listOf(item))
+                                            }
+                                        },
                                 ) {
                                     Column(Modifier.fillMaxSize().padding(5.dp)) {
                                         Text(item.name, color = Color.White, fontSize = 11.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
@@ -657,6 +665,13 @@ private fun MorePage(service: TimetableService?) {
         }
     }
     fun openPlugin(id: String) {
+        val installed = runCatching {
+            com.stupidtree.hitax.uiplugin.UiPluginManager(context).enabled().any { it.id == id }
+        }.getOrDefault(false)
+        if (!installed) {
+            android.widget.Toast.makeText(context, "插件未安装：$id", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         runCatching {
             context.startActivity(
                 android.content.Intent(context, com.stupidtree.hitax.uiplugin.PluginUiActivity::class.java)
@@ -664,6 +679,12 @@ private fun MorePage(service: TimetableService?) {
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             )
         }
+    }
+    val communityInstalled = remember {
+        runCatching {
+            com.stupidtree.hitax.uiplugin.UiPluginManager(context).enabled()
+                .any { it.id == "com.stupidtree.hita.ui.community" }
+        }.getOrDefault(false)
     }
     Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())
         .padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -775,8 +796,10 @@ private fun MorePage(service: TimetableService?) {
             MoreRow("培养方案", "完成度 · 学分类别 · 培养课组", Icons.Default.School, rowHeight = 56.dp) {
                 openPlugin("com.stupidtree.hita.ui.training")
             }
-            MoreRow("深圳课程浏览", "教务选课池 · 全校课表（需 Web 登录）", Icons.Default.Search, rowHeight = 67.dp) {
-                openPlugin("com.stupidtree.hita.ui.community")
+            if (communityInstalled) {
+                MoreRow("深圳课程浏览", "教务选课池 · 全校课表（需 Web 登录）", Icons.Default.Search, rowHeight = 67.dp) {
+                    openPlugin("com.stupidtree.hita.ui.community")
+                }
             }
         }
         Spacer(Modifier.height(14.dp))
