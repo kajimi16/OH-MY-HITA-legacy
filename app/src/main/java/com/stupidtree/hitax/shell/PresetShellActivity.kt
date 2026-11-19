@@ -341,6 +341,13 @@ private fun HitaAndroidShell(
 @Composable
 private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember {
+        context.getSharedPreferences("local_eas_token", android.content.Context.MODE_PRIVATE)
+    }
+    val userName = remember {
+        prefs.getString("name", null)?.takeIf { it.isNotBlank() }
+            ?: prefs.getString("username", null)?.takeIf { it.isNotBlank() }
+    }
     fun launch(className: String) {
         runCatching {
             context.startActivity(
@@ -371,39 +378,50 @@ private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
                         .verticalScroll(androidx.compose.foundation.rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                 ) {
-                    Text("OH-MY-HITA", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text("HITA_Android 3.1.2", color = shellSecondary(), fontSize = 12.sp)
-                    Spacer(Modifier.height(18.dp))
-                    DrawerRow("课表管理") {
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .clickable { launch("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity") }
+                            .padding(top = 28.dp, bottom = 28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(
+                            Modifier.size(96.dp).clip(CircleShape)
+                                .background(Color(0xFF2F80ED)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            androidx.compose.material3.Icon(
+                                Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(56.dp),
+                            )
+                        }
+                        Spacer(Modifier.height(18.dp))
+                        Text(
+                            userName ?: "点击进行教务登录",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            if (userName == null) "未登录教务" else "已连接教务",
+                            color = shellSecondary(),
+                            fontSize = 16.sp,
+                        )
+                    }
+                    Spacer(Modifier.height(24.dp))
+                    DrawerRow("课表管理", R.drawable.ic_menu_settings) {
                         com.stupidtree.hitax.utils.ActivityUtils.startTimetableManager(context)
                         onClose()
                     }
-                    DrawerRow("插件市场") {
-                        context.startActivity(
-                            android.content.Intent(context, com.stupidtree.hitax.market.PluginMarketActivity::class.java)
-                        )
-                        onClose()
-                    }
-                    DrawerRow("应用设置") {
-                        val installed = com.stupidtree.hitax.uiplugin.UiPluginManager(context).enabled()
-                            .any { it.id == "com.stupidtree.hita.ui.appearance" }
-                        if (!installed) {
-                            android.widget.Toast.makeText(context, "外观插件未安装", android.widget.Toast.LENGTH_SHORT).show()
-                        } else {
-                            context.startActivity(
-                                android.content.Intent(context, com.stupidtree.hitax.uiplugin.PluginUiActivity::class.java)
-                                    .putExtra(
-                                        com.stupidtree.hitax.uiplugin.PluginUiActivity.EXTRA_PLUGIN_ID,
-                                        "com.stupidtree.hita.ui.appearance",
-                                    )
-                            )
+                    DrawerRow("用户与隐私协议", R.drawable.ic_info) {
+                        (context as? androidx.fragment.app.FragmentActivity)?.let {
+                            com.stupidtree.hitax.ui.about.UserAgreementDialog()
+                                .show(it.supportFragmentManager, "ua")
                         }
                         onClose()
                     }
-                    DrawerRow("连接 Web 教务") {
-                        launch("com.stupidtree.hitax.ui.eas.login.ShenzhenWebLoginActivity")
-                    }
-                    DrawerRow("关于") {
+                    DrawerRow("关于HITSZ助手", R.drawable.logo) {
                         context.startActivity(
                             android.content.Intent(context, com.stupidtree.hitax.ui.about.ActivityAbout::class.java)
                         )
@@ -416,14 +434,19 @@ private fun ShellDrawerOverlay(open: Boolean, onClose: () -> Unit) {
 }
 
 @Composable
-private fun DrawerRow(title: String, onClick: () -> Unit) {
+private fun DrawerRow(title: String, iconRes: Int, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(horizontal = 24.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, fontSize = 16.sp, modifier = Modifier.weight(1f))
-        Icon(Icons.Default.ChevronRight, null, tint = shellTertiary(), modifier = Modifier.size(18.dp))
+        androidx.compose.material3.Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = Color(0xFF2563EB),
+            modifier = Modifier.size(26.dp),
+        )
+        Text(title, fontSize = 16.sp, modifier = Modifier.padding(start = 22.dp))
     }
 }
 
