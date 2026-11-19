@@ -75,12 +75,15 @@ import androidx.compose.animation.fadeIn as animFadeIn
 import androidx.compose.animation.fadeOut as animFadeOut
 import androidx.compose.animation.slideInHorizontally as animSlideIn
 import androidx.compose.animation.slideOutHorizontally as animSlideOut
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -90,6 +93,7 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -435,6 +439,18 @@ private fun TodayPage(service: TimetableService?) {
         }
     }
     val finished = events.isNotEmpty() && events.all { it.to.time <= System.currentTimeMillis() }
+    var expanded by remember { mutableStateOf(false) }
+    val now = System.currentTimeMillis()
+    val nextEvent = events.filter { it.to.time > now }.minByOrNull { it.from.time }
+    val countdown = nextEvent?.let {
+        val minutes = ((it.from.time - now) / 60_000L).coerceAtLeast(0L)
+        when {
+            it.from.time <= now -> "正在进行"
+            minutes >= 60 -> "${minutes / 60}小时${minutes % 60}分钟后进行"
+            else -> "${minutes}分钟后进行"
+        }
+    }
+    val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, label = "todayArrow")
     Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 20.4.dp)) {
         Text(
             dateText,
@@ -447,7 +463,7 @@ private fun TodayPage(service: TimetableService?) {
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0C5C91)),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
         ) {
             Column(
                 Modifier.fillMaxWidth().background(
@@ -501,10 +517,47 @@ private fun TodayPage(service: TimetableService?) {
                 }
                 androidx.compose.material3.Icon(
                     painter = painterResource(R.drawable.ic_baseline_arrow_drop_down_24),
-                    contentDescription = null,
+                    contentDescription = if (expanded) "收起今日课程" else "展开今日课程",
                     tint = Color.White,
-                    modifier = Modifier.align(Alignment.End).padding(end = 16.dp).size(44.dp),
+                    modifier = Modifier.align(Alignment.End).padding(end = 16.dp).size(44.dp)
+                        .rotate(arrowRotation),
                 )
+                AnimatedVisibility(
+                    visible = expanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color.White.copy(alpha = 0.16f))
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                countdown ?: "接下来没事了",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                nextEvent?.name ?: "see you",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 14.sp,
+                            )
+                        }
+                        androidx.compose.material3.Icon(
+                            painter = painterResource(
+                                if (nextEvent != null) R.drawable.ic_baseline_access_alarm_24 else R.drawable.ic_empty,
+                            ),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                }
             }
         }
         if (events.isNotEmpty()) {
@@ -548,7 +601,7 @@ private fun TodayPage(service: TimetableService?) {
 @Composable
 private fun TodayEventRow(event: EventItem, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 64.dp),
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(32.dp).height(64.dp), contentAlignment = Alignment.Center) {
@@ -564,8 +617,7 @@ private fun TodayEventRow(event: EventItem, onClick: () -> Unit) {
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.weight(1f).padding(vertical = 4.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .clickable(onClick = onClick),
+                .clip(RoundedCornerShape(24.dp)),
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                 Text(event.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium)
