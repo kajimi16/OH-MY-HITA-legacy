@@ -63,7 +63,7 @@ plugin_market_view, timetable_open, today_open, more_open
 - 本地 `market/index.json` 增加 HITA-L / HITA-Android 的 `presets`；
 - HITA-Android refs 加入 announcement/community；
 - uiPlugins 增加可选人数字段；
-- 自有 `hita.kajimi.cc` 索引已发布；上游官方 registry 未同步。
+- 自有 `hita.kajimi.cc` 索引已发布；官方 `hita-community-plugins` registry 已同步（6e9b386）。
 
 ## 5. 验收
 
@@ -99,5 +99,5 @@ plugin_market_view, timetable_open, today_open, more_open
 - 深圳课程池历史挂科率/教师检索/选课任务（历史挂科率受教务隐私限制）；
 - 公告已读状态；
 - 登录态课程附件真实内容验证；
-- 上游官方 `hita-community-plugins` registry 未同步（自有 `hita.kajimi.cc` 已部署）。
+- 官方 `hita-community-plugins` registry 已同步（commit 6e9b386）；自有 `hita.kajimi.cc` 也已部署。
 

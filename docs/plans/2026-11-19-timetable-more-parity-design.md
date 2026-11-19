@@ -161,7 +161,7 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
 ## 8. 风险与已知边界
 
 - 自有索引已在 `hita.kajimi.cc` 部署，HITA-Android refs 含新插件；上游官方
-  `hita-community-plugins` 索引未同步。
+  `hita-community-plugins` 索引已同步（6e9b386）。
 - 使用统计后端已部署到 `hita.kajimi.cc`；实际人数需要真实客户端事件累积。
 - 历史挂科率受教务隐私限制，不能合法生成其他教学班统计。
 - 完整选课任务、教师资料页尚未移植；附件真实内容未在登录态设备验证。
