@@ -37,6 +37,8 @@ data class MarketPlugin(
     val repo: String? = null,
     val logo: String? = null,
     val updatedAt: String? = null,
+    val downloads: Long? = null,
+    val activeUsers: Long? = null,
 )
 
 /** 市场里的运行时界面插件（独立 APK + Compose 容器）。 */
@@ -56,6 +58,8 @@ data class UiMarketPlugin(
     val repo: String? = null,
     val logo: String? = null,
     val updatedAt: String? = null,
+    val downloads: Long? = null,
+    val activeUsers: Long? = null,
 )
 
 /** 整合包里的一个插件引用；kind 为 ui/dex/builtin。 */

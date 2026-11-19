@@ -227,6 +227,11 @@ class UiPluginManager(private val context: Context) {
             // 重装同一个 id 时旧记录可能仍在 disabled 集合里；安装完成应视为启用。
             UiPluginStore.setEnabled(context, meta.id, true)
             backup.delete()
+            com.stupidtree.hitax.analytics.UsageAnalytics.record(
+                context,
+                com.stupidtree.hitax.analytics.UsageEventAllowlist.PLUGIN_INSTALL,
+                pluginId = meta.id,
+            )
             return installed
         } catch (t: Throwable) {
             staging.delete()

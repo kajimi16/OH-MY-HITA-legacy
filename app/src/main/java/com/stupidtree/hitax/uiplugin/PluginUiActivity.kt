@@ -1,9 +1,17 @@
 package com.stupidtree.hitax.uiplugin
 
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
+import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
+import androidx.core.graphics.drawable.DrawableCompat
+import com.google.android.material.color.MaterialColors
 import com.stupidtree.hita.api.ComposeUiPlugin
 import com.stupidtree.hita.api.PluginUiHost
 import com.stupidtree.hita.api.ServiceKey
@@ -35,7 +43,42 @@ class PluginUiActivity : AppCompatActivity() {
         try {
             val instance = UiPluginManager(this).instantiate(record)
             plugin = instance
-            setContentView(instance.createView(this, host))
+            com.stupidtree.hitax.analytics.UsageAnalytics.record(
+                this,
+                com.stupidtree.hitax.analytics.UsageEventAllowlist.PLUGIN_OPEN,
+                pluginId = id,
+            )
+            val content = instance.createView(this, host)
+            val toolbar = Toolbar(this).apply {
+                title = record.name.ifBlank { instance.displayName }
+                setTitleTextColor(
+                    MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface, Color.DKGRAY)
+                )
+                setBackgroundColor(
+                    MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurface, Color.WHITE)
+                )
+                setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+                navigationIcon?.let {
+                    DrawableCompat.setTint(
+                        it,
+                        MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface, Color.DKGRAY),
+                    )
+                }
+                setNavigationOnClickListener { finish() }
+                elevation = resources.displayMetrics.density * 1f
+            }
+            val root = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(
+                    toolbar,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        (56 * resources.displayMetrics.density).toInt(),
+                    ),
+                )
+                addView(content, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+            }
+            setContentView(root)
         } catch (t: Throwable) {
             Log.e(TAG, "load ui plugin failed: $id", t)
             // 坏插件不应反复拖垮入口：停用后下次直接回退内置页面。

@@ -19,6 +19,13 @@ interface CourseCatalogService {
         pageSize: Int = 20,
     ): LiveData<DataState<List<TermSubject>>>
 
+    /** 加入选课（实际选课动作）。 */
+    fun selectCourse(
+        term: TermItem,
+        course: TermSubject,
+        poolCode: String = "bx-b-b",
+    ): LiveData<DataState<String>>
+
     companion object {
         val KEY = ServiceKey<CourseCatalogService>("hita.eas.courseCatalog")
     }

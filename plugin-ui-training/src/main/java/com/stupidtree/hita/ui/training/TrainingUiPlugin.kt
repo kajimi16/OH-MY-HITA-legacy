@@ -46,7 +46,7 @@ class TrainingUiPlugin : ComposeUiPlugin {
                         .observeAsState(DataState(DataState.STATE.NOTHING))
 
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
-                        Text("培养方案", style = MaterialTheme.typography.h5)
+                        
                         when {
                             service == null -> Text("培养方案服务不可用")
                             plansState.state == DataState.STATE.NOT_LOGGED_IN ->

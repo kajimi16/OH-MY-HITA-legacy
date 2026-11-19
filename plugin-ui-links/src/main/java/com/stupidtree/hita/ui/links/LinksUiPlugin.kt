@@ -38,17 +38,6 @@ class LinksUiPlugin : ComposeUiPlugin {
                         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                             .padding(16.dp),
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            TextButton(onClick = { host.close() }) { Text("返回") }
-                            Text(
-                                "实用网址",
-                                style = MaterialTheme.typography.h5,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
                         Text("点按打开，长按由系统复制链接。", style = MaterialTheme.typography.caption)
 
                         links.forEach { (name, url) ->

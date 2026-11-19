@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.lifecycle.Observer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
@@ -58,6 +59,7 @@ class CommunityUiPlugin : ComposeUiPlugin {
                     var reload by remember { mutableIntStateOf(0) }
                     var page by remember { mutableIntStateOf(1) }
                     var selectedTerm by remember { mutableStateOf<TermItem?>(null) }
+                    var status by remember { mutableStateOf("") }
                     val termsLive = remember(service, reload) { service?.terms() }
                     val termsState = termsLive?.observeAsState()?.value
                     LaunchedEffect(termsState, reload) {
@@ -76,16 +78,9 @@ class CommunityUiPlugin : ComposeUiPlugin {
 
                     Column(Modifier.fillMaxSize()) {
                         Row(
-                            Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 8.dp),
+                            Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            TextButton(onClick = { host.close() }) { Text("返回") }
-                            Text(
-                                "深圳课程浏览",
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f),
-                            )
                             TextButton(onClick = { reload++ }) { Text("刷新") }
                         }
                         if (service == null) {
@@ -139,8 +134,25 @@ class CommunityUiPlugin : ComposeUiPlugin {
                                     else -> {
                                         LazyColumn(Modifier.weight(1f)) {
                                             items(coursesState?.data.orEmpty()) { course ->
-                                                CatalogRow(course)
+                                                CatalogRow(course) {
+                                                    val term = selectedTerm ?: return@CatalogRow
+                                                    val live = service.selectCourse(term, course)
+                                                    val observer = object : Observer<DataState<String>> {
+                                                        override fun onChanged(value: DataState<String>) {
+                                                            status = if (value.state == DataState.STATE.SUCCESS) {
+                                                                "选课成功：${course.name}"
+                                                            } else {
+                                                                "选课失败：${value.message ?: value.state}"
+                                                            }
+                                                            live.removeObserver(this)
+                                                        }
+                                                    }
+                                                    live.observeForever(observer)
+                                                }
                                             }
+                                        }
+                                        if (status.isNotBlank()) {
+                                            Text(status, Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                                         }
                                         Row(
                                             Modifier.fillMaxWidth().padding(12.dp),
@@ -165,21 +177,24 @@ class CommunityUiPlugin : ComposeUiPlugin {
 }
 
 @Composable
-private fun CatalogRow(course: TermSubject) {
+private fun CatalogRow(course: TermSubject, onSelect: () -> Unit) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Column(Modifier.padding(14.dp)) {
-            Text(course.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            Text(
-                buildString {
-                    course.code?.takeIf { it.isNotBlank() }?.let { append(it).append(" · ") }
-                    append("${course.credit} 学分")
-                    course.school?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
-                    course.field?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
-                },
-                fontSize = 12.sp,
-                color = MaterialTheme.colors.onSurface.copy(alpha = 0.68f),
-                modifier = Modifier.padding(top = 4.dp),
-            )
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(course.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text(
+                    buildString {
+                        course.code?.takeIf { it.isNotBlank() }?.let { append(it).append(" · ") }
+                        append("${course.credit} 学分")
+                        course.school?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
+                        course.field?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
+                    },
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.68f),
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            TextButton(onClick = onSelect) { Text("选课") }
         }
     }
 }

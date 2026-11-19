@@ -41,7 +41,7 @@ class AppearanceUiPlugin : ComposeUiPlugin {
                         modifier = Modifier.fillMaxSize().padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        Text("外观与字体", style = MaterialTheme.typography.h5)
+                        
                         Text("配色与字体由宿主应用，重启当前界面后可见。", style = MaterialTheme.typography.body2)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("深色模式", modifier = Modifier.weight(1f))

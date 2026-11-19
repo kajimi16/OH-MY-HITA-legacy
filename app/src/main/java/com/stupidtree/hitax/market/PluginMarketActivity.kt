@@ -16,6 +16,10 @@ class PluginMarketActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.stupidtree.hitax.analytics.UsageAnalytics.record(
+            this,
+            com.stupidtree.hitax.analytics.UsageEventAllowlist.PLUGIN_MARKET_VIEW,
+        )
         val container = FragmentContainerView(this).apply {
             id = R.id.market_container
         }

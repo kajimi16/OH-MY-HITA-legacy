@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
@@ -49,9 +50,11 @@ import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.clickable
@@ -60,6 +63,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -208,6 +212,48 @@ private fun HitaAndroidShell(
     ) }
     var selected by remember { mutableIntStateOf(1) }
     var drawerOpen by remember { mutableStateOf(false) }
+    val shellContext = androidx.compose.ui.platform.LocalContext.current
+    var showUsageConsent by remember {
+        mutableStateOf(!com.stupidtree.hitax.data.source.preference.UsageStatsStore.hasAsked(shellContext))
+    }
+    if (showUsageConsent) {
+        AlertDialog(
+            onDismissRequest = {
+                com.stupidtree.hitax.data.source.preference.UsageStatsStore.markAsked(shellContext)
+                showUsageConsent = false
+            },
+            title = { Text("匿名使用统计") },
+            text = {
+                Text(
+                    "是否允许上报匿名安装 ID、版本、事件名、页面和插件 ID？" +
+                        "不会上报账号、学号、姓名、课程内容或自由文本。默认关闭，可随时在更多页关闭或清除。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    com.stupidtree.hitax.data.source.preference.UsageStatsStore.setEnabled(shellContext, true)
+                    com.stupidtree.hitax.analytics.UsageAnalytics.record(
+                        shellContext, com.stupidtree.hitax.analytics.UsageEventAllowlist.APP_OPEN
+                    )
+                    showUsageConsent = false
+                }) { Text("允许匿名统计") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    com.stupidtree.hitax.data.source.preference.UsageStatsStore.markAsked(shellContext)
+                    showUsageConsent = false
+                }) { Text("暂不") }
+            },
+        )
+    }
+    val screenNames = listOf("todo", "today", "timetable", "assistant", "news", "more")
+    LaunchedEffect(selected) {
+        com.stupidtree.hitax.analytics.UsageAnalytics.record(
+            shellContext,
+            com.stupidtree.hitax.analytics.UsageEventAllowlist.SCREEN_VIEW,
+            screen = screenNames.getOrNull(selected),
+        )
+    }
     BackHandler(enabled = drawerOpen) { drawerOpen = false }
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
@@ -987,6 +1033,10 @@ private fun MorePage(service: TimetableService?, onOpenDrawer: () -> Unit) {
             ) { enabled ->
                 com.stupidtree.hitax.data.source.preference.UsageStatsStore.setEnabled(context, enabled)
                 usageEnabled = enabled
+            }
+            MoreRow("清除使用统计", "删除本机事件队列与匿名安装 ID", Icons.Default.Delete) {
+                com.stupidtree.hitax.analytics.UsageAnalytics.clear(context)
+                android.widget.Toast.makeText(context, "使用统计已清除", android.widget.Toast.LENGTH_SHORT).show()
             }
             MoreRow("公告", "版本更新 · 服务与故障通知", Icons.Default.Notifications) {
                 openPlugin("com.stupidtree.hita.ui.announcement")

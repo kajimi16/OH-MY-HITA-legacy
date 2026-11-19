@@ -297,7 +297,18 @@ class FragmentPluginMarket : BaseFragment<PluginMarketViewModel, FragmentPluginM
     ) {
         val update = installedVersion != null && PluginVersion.isNewer(plugin.version, installedVersion)
         card.name.text = plugin.name
-        card.meta.text = "界面插件 · v${plugin.version}" + if (update) " · 可更新" else ""
+        card.meta.text = buildString {
+            append("界面插件 · v").append(plugin.version)
+            if (update) append(" · 可更新")
+            val downloads = plugin.downloads
+            val active = plugin.activeUsers
+            if (downloads != null || active != null) {
+                append(" · ")
+                if (downloads != null) append("下载 ").append(downloads)
+                if (downloads != null && active != null) append(" · ")
+                if (active != null) append("活跃 ").append(active)
+            }
+        }
         card.toggle.visibility = View.GONE
         card.action.visibility = View.VISIBLE
         card.action.text = when {

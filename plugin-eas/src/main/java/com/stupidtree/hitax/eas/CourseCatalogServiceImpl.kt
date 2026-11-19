@@ -20,4 +20,11 @@ class CourseCatalogServiceImpl(private val application: Application) : CourseCat
         pageSize: Int,
     ): LiveData<DataState<List<TermSubject>>> =
         repo.getAvailableCourses(term, poolCode, page, pageSize)
+
+    override fun selectCourse(
+        term: TermItem,
+        course: TermSubject,
+        poolCode: String,
+    ): LiveData<DataState<String>> =
+        repo.selectCourse(term, course.key.orEmpty(), poolCode)
 }

@@ -61,16 +61,9 @@ class AnnouncementUiPlugin : ComposeUiPlugin {
                     }
                     Column(Modifier.fillMaxSize()) {
                         Row(
-                            Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 8.dp),
+                            Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            TextButton(onClick = { host.close() }) { Text("返回") }
-                            Text(
-                                "公告",
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f),
-                            )
                             TextButton(onClick = { reload++ }) { Text("刷新") }
                         }
                         when {

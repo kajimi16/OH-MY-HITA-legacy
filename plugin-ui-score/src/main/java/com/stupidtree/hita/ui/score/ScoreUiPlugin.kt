@@ -49,7 +49,7 @@ class ScoreUiPlugin : ComposeUiPlugin {
                     }
                     val reportState by reportLive.observeAsState(DataState(DataState.STATE.NOTHING))
                     Column(Modifier.fillMaxSize().padding(16.dp)) {
-                        Text("成绩分析", style = MaterialTheme.typography.h5)
+                        
                         when {
                             service == null -> Text("成绩服务不可用（教务插件缺失）")
                             termsState.state == DataState.STATE.NOT_LOGGED_IN ->
