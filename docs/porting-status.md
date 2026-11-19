@@ -139,8 +139,12 @@ Shell 入口：
 - 更多新增：提交课程资料 PR、实用网址、公告、课程提醒、实时课程、使用统计；
 - 课程提醒/实时课程/使用统计三个开关接入本地设置并在冷启动后保持；
 - 新 UI 插件：`plugin-ui-announcement`（公告 API）、
-  `plugin-ui-community`（深圳课程浏览入口页）；
+  `plugin-ui-community`（深圳课程浏览原生课程池）；
 - `plugin-ui-links` 移除了误混入的外观/字体控制；
-- 深圳课程浏览首版是入口页，不是原生课程池；WebView 直开会被教务移动端限制拒绝，
-  原生 `ShenzhenCourseCatalogActivity` 列入后续。
+- 深圳课程浏览已实现：课程池列表、学期/分页、课程名/教师关键词、详情、
+  简介/中英文教学大纲附件、单课程选课；教师资料、完整选课任务、历史挂科率未完成。
+- 使用统计：Room + WorkManager，默认关闭/首次询问，自托管 `/api/usage` 与
+  `/api/market/stats` 已部署到 `hita.kajimi.cc`。
+- 官方 `hita-community-plugins` registry 已同步（commit `6e9b386`），
+  HITA-Android preset refs 含 announcement/community。
 - 设备验证：课表设置面板、PR、实用网址、公告空态、深圳入口、三个开关持久化均通过。
