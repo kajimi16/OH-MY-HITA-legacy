@@ -7,7 +7,7 @@ HITA 课表的插件化重构：微内核 + 插件，万物皆插件。
 [App 下载（Releases）](https://github.com/kajimi16/OH-MY-HITA/releases/latest) ·
 [国内镜像](https://ani2-ext.kajimi.cc/hita/releases/oh-my-hita-latest.apk)
 
-当前发布：`0.7.1`（API 8）。包名 `io.github.kajimi16.ohmyhita`，与原版 HITA 可共存安装。
+当前发布：`0.7.2`（API 8）。包名 `io.github.kajimi16.ohmyhita`，与原版 HITA 可共存安装。
 
 ### API 8 能力
 
@@ -30,7 +30,7 @@ HITA 课表的插件化重构：微内核 + 插件，万物皆插件。
 首次启动会直接列出整合包：
 
 - `hita-l-1.5.3`：经典轻量组合
-- `hita-android-3.1.2`：HITA_Android v3.1.2 复刻，19 个插件
+- `hita-android-3.1.2`：HITA_Android v3.1.2 复刻，21 个插件（含可选公告/深圳课程）
 
 市场卡片显示「使用中」，支持切换；切换会安装缺失插件，并停用旧组合独有的 UI/内置插件。
 所有已安装 UI 插件也会出现在「功能中心 → 已安装插件」，不必从市场卡片进入。
