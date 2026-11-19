@@ -68,10 +68,10 @@
       "name": "深圳课程浏览",
       "version": "0.1.0",
       "url": "community-0.1.0.apk",
-      "sha256": "fa33fce6a1d6f5184f45e8ca3e9f3d93e71966fd4abab39f9d646665d48d3346",
+      "sha256": "bca2a3ad2ddf4af5e3161afdc69945a0fc2305c43fe6f8a443fd210ba62f94bd",
       "description": "深圳教务入口（后续升级原生课程池）。",
       "minHostApi": 7,
-      "size": 818133,
+      "size": 831776,
       "tags": [
         "HITA",
         "插件"

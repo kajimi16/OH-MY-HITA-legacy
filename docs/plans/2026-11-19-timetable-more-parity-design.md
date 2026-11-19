@@ -28,7 +28,7 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
 | 课程提醒开关 | 宿主 Shell → `CourseReminderStore` + `CourseReminderScheduler` | 调度器是宿主能力，插件不能声明 Worker |
 | 实时课程开关 | 宿主 Shell → `LiveCourseSettings` | HITA-L 已有同名开关；HITA-Android 用同一设置存储 |
 | 使用统计开关 | 宿主 Shell → 新增 `UsageStatsStore` | 当前没有遥测后端；先持久化开关并明确“本版本不上传” |
-| 深圳课程浏览 | 新 UI 插件 `plugin-ui-community` | 目录页是独立业务；先做登录/浏览器入口，后续再排期原生目录 |
+| 深圳课程浏览 | 新 UI 插件 `plugin-ui-community` | 目录页是独立业务；已接 EAS 课程池，选课/附件/挂科率后续补 |
 | 插件页返回/TopAppBar | 宿主 `PluginUiActivity` 或插件自绘 | 先在插件页自绘统一 header，避免一次性改所有旧插件 |
 
 ## 3. 时间表设计
@@ -107,11 +107,11 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
 ### 5.2 `plugin-ui-community`
 
 - id：`com.stupidtree.hita.ui.community`
-- 页面：深圳课程浏览入口；
-- 首版：入口落地页；深圳教务对移动 UA 返回“请使用 PC 浏览器”，
-  因此不展示不可用的 WebView，改为「连接 Web 教务」+「用浏览器打开教务」；
-- 明确限制：首版是入口页，不是 `ShenzhenCourseCatalogActivity` 的原生课程池；
-  原生目录需要单独移植 EAS DTO/repository，列入后续阶段；
+- 页面：深圳课程浏览；
+- 首版：原生课程池列表（`CourseCatalogService` → EAS `getAvailableCourses`）；
+  未登录显示「连接 Web 教务」，已登录按学期分页展示课程；
+- 明确限制：已实现课程列表，但选课任务、附件、历史挂科率、教师检索等
+  `ShenzhenCourseCatalogActivity` 的完整能力仍未移植；
 - 插件不声明 Activity/Service，仍由 `PluginUiActivity` 承载。
 
 ### 5.3 插件页 chrome
@@ -129,13 +129,14 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
 4. 恢复深圳课程浏览入口并接入新插件；
 5. 新插件模块与构建：
    - `plugin-ui-announcement`：公告列表（HITA 公告 API）；
-   - `plugin-ui-community`：深圳课程浏览入口页；
+   - `plugin-ui-community`：深圳课程浏览（原生课程池）；
 6. 清理 `plugin-ui-links` 中误混入的外观/字体控制；
-7. 两个新插件 APK 加入 `market/index.json` 与 `market/`（本地/市场索引样例）。
+7. 两个新插件 APK 加入 `market/index.json` 与 `market/`（本地/市场索引样例）；
+8. `CourseCatalogService` 原生课程池契约与 EAS 实现。
 
 ### Phase 2
 
-1. 深圳课程浏览从入口页升级为原生课程池；
+1. 深圳课程浏览补齐选课任务/附件/历史挂科率；
 2. 公告接入 HITA 公告 API 与已读状态；
 3. 插件容器统一 TopAppBar，移除各插件重复标题。
 
@@ -149,8 +150,8 @@ UI 插件，而不是继续在 Shell 里堆硬编码页面。
   - 公告打开新插件；后端当前返回空列表时显示“暂无公告”；
   - 课程提醒请求通知权限后写入 `course_reminder`，开关重启保持；
   - 实时课程写入 `live_courses`，使用统计写入 `usage_stats`，重启保持。
-- 深圳课程浏览打开新插件入口页：连接 Web 教务、用浏览器打开教务；
-  原生课程池仍待 Phase 2。
+- 深圳课程浏览打开原生课程池：未登录显示连接 Web 教务；已登录按学期分页展示课程；
+  选课任务/附件/历史挂科率仍待 Phase 2。
 - 新插件模块：
   - `plugin-ui-announcement`（0.1.0）
   - `plugin-ui-community`（0.1.0）

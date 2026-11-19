@@ -1,0 +1,23 @@
+package com.stupidtree.hitax.eas
+
+import android.app.Application
+import androidx.lifecycle.LiveData
+import com.stupidtree.component.data.DataState
+import com.stupidtree.hita.api.CourseCatalogService
+import com.stupidtree.hitax.data.model.eas.TermItem
+import com.stupidtree.hitax.data.model.timetable.TermSubject
+import com.stupidtree.hitax.data.repository.EASRepository
+
+class CourseCatalogServiceImpl(private val application: Application) : CourseCatalogService {
+    private val repo get() = EASRepository.getInstance(application)
+
+    override fun terms(): LiveData<DataState<List<TermItem>>> = repo.getAllTerms()
+
+    override fun courses(
+        term: TermItem,
+        poolCode: String,
+        page: Int,
+        pageSize: Int,
+    ): LiveData<DataState<List<TermSubject>>> =
+        repo.getAvailableCourses(term, poolCode, page, pageSize)
+}

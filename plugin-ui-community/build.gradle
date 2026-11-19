@@ -28,4 +28,5 @@ dependencies {
     compileOnly "androidx.compose.ui:ui:1.6.8"
     compileOnly "androidx.compose.foundation:foundation:1.6.8"
     compileOnly "androidx.compose.material:material:1.6.8"
+    compileOnly "androidx.compose.runtime:runtime-livedata:1.6.8"
 }
